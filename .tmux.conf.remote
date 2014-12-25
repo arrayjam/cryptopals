@@ -1,0 +1,11 @@
+set-option -g prefix C-o
+unbind-key C-o
+bind-key o send-prefix
+setw -g mode-keys vi
+
+set -sg escape-time 0
+
+set -g history-limit 100000
+
+set-option -g bell-action any
+set-option -g visual-bell off
