@@ -58,7 +58,8 @@ int main(int argc, char *argv[])
   PrintBits(&String, sizeof(uint8));
 
   int8 *HexString = (int8 *)
-    "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
+    //"49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
+    "4d616e";
 
   uint8 ByteBufferSize = StringLength(HexString) / 2;
   printf("HexString: %s\nStringLength(HexString): %d, ByteBufferSize: %d\n",
@@ -92,16 +93,67 @@ int main(int argc, char *argv[])
   uint8 One = 0xff;
   PrintBits(&One, 1);
 
-  uint8 Base64Padding = 3 - (ByteBufferSize % 3);
-  uint8 Base64Length = (ByteBufferSize + Base64Padding) * 8 / 6;
+  uint8 Base64Padding = (ByteBufferSize % 3 != 0) ? (3 - (ByteBufferSize % 3)) : 0;
+  uint8 PaddedByteBufferSize = ByteBufferSize + Base64Padding;
+  uint8 Base64Length = PaddedByteBufferSize * 8 / 6;
   printf("Base64Length: %d, Base64Padding: %d\n",
          Base64Length, Base64Padding);
 
   uint8 *Base64Buffer = (uint8 *)malloc(sizeof(uint8) * Base64Length);
   if(!Base64Buffer) printf("Couldn't allocate Base64Buffer.\n");
 
-  //for(int TripletIndex = 0; TripletIndex <
+  printf("ByteBufferSize: %d, Base64Remainder: %d\n",
+         ByteBufferSize, Base64Padding);
 
+  uint8 AsciiTriplet[3];
+  uint8 Base64Sextet[4];
+  uint8 Mask = 0xff;
+
+  uint8 Base64LookupTable[] = {
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+    'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd',
+    'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+    't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7',
+    '8', '9', '+', '/'
+  };
+
+  for(int TripletIndex = 0;
+      TripletIndex < PaddedByteBufferSize / 3;
+      TripletIndex++)
+  {
+    for(int i = 0; i < ArrayCount(AsciiTriplet); i++)
+    {
+      // TODO(yuri): Does filling this out backward with 2-i give us the right
+      // block of memory?
+      AsciiTriplet[i] = ByteBuffer[TripletIndex*3 + i];
+    }
+
+    // TODO(yuri): There has to be a better way of doing this.
+    Base64Sextet[0] = ((Mask << 2) & AsciiTriplet[0]) >> 2;
+    PrintBits(&Base64Sextet[0], 1);
+
+    Base64Sextet[1] =
+      (((Mask >> 6) & AsciiTriplet[0]) << 4) |
+      (((Mask << 4) & AsciiTriplet[1]) >> 4);
+    PrintBits(&Base64Sextet[1], 1);
+
+    Base64Sextet[2] =
+      (((Mask >> 4) & AsciiTriplet[1]) << 2) |
+      (((Mask << 6) & AsciiTriplet[2]) >> 6);
+    PrintBits(&Base64Sextet[2], 1);
+
+    Base64Sextet[3] = (Mask >> 2) & AsciiTriplet[2];
+    PrintBits(&Base64Sextet[3], 1);
+
+
+    for(int i = 0; i < ArrayCount(Base64Sextet); i++)
+    {
+      printf("%d: %c\n", Base64Sextet[i], Base64LookupTable[Base64Sextet[i]]);
+    }
+
+    //printf("%d, %d\n", TripletIndex, PaddedByteBufferSize / 3);
+    printf("%c%c%c|\n", AsciiTriplet[0], AsciiTriplet[1], AsciiTriplet[2]);
+  }
 
 
   free(ByteBuffer);
