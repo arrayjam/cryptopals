@@ -17,8 +17,9 @@ typedef double real64;
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
-int
-StringLength(char *String) {
+uint16
+StringLength(uint8 *String)
+{
   int Count = 0;
 
   while(*String++) {
@@ -28,23 +29,33 @@ StringLength(char *String) {
   return Count;
 }
 
-uint8 *
-DecStringToArray(char *String) {
-  uint8 * Result = (uint8 *)malloc(sizeof(uint8) * StringLength(String));
-  if (!Result) return 0;
+void
+PrintBits(void *Value, size_t Size)
+{
+  uint8 *Ptr = (uint8 *)Value;
 
-  for(int i = 0; i < StringLength(String); i++) {
-    Result[i] = (int)String[i];
+  uint8 Byte;
+  int16 ByteIndex, BitIndex;
+
+  for (ByteIndex = Size - 1; ByteIndex >= 0; ByteIndex--) {
+    for (BitIndex = 7; BitIndex >= 0; BitIndex--)
+    {
+      Byte = Ptr[ByteIndex] & (1 << BitIndex);
+      Byte >>= BitIndex;
+      //printf("i: %d, j: %d, byte: %u\n", ByteIndex, BitIndex, Byte);
+      printf("%u", Byte);
+    }
   }
-
-  return Result;
+  printf("\n");
 }
 
-int main(int argc, char *argv[]) {
-  char * String = (char *)"yuri";
+int main(int argc, char *argv[])
+{
+  uint8 String;
+  String = 90;
+  PrintBits(&String, sizeof(uint8));
+  String = strtol("5a", 0, 16);
+  PrintBits(&String, sizeof(uint8));
 
-  printf("%s: %d\n", String, StringLength(String));
-  uint8 * Array = DecStringToArray(String);
-
-  if(Array) free(Array);
+  printf("\n");
 }
