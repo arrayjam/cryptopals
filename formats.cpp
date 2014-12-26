@@ -57,16 +57,19 @@ int main(int argc, char *argv[])
   String = strtol("5a", 0, 16);
   PrintBits(&String, sizeof(uint8));
 
-  int8 *HexString = (int8 *)"49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d";
-  uint8 HexLength = StringLength(HexString) / 2;
-  printf("HexString: %s, HexLength: %d\n", HexString, HexLength);
+  int8 *HexString = (int8 *)
+    "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
 
-  int8 *ByteBuffer = (int8 *)malloc(sizeof(int8) * HexLength);
+  uint8 ByteBufferSize = StringLength(HexString) / 2;
+  printf("HexString: %s\nStringLength(HexString): %d, ByteBufferSize: %d\n",
+         HexString, StringLength(HexString), ByteBufferSize);
+
+  int8 *ByteBuffer = (int8 *)malloc(sizeof(int8) * ByteBufferSize);
   if(!ByteBuffer) printf("Couldn't allocate ByteBuffer.\n");
 
   int8 FirstHexChar, SecondHexChar;
   int8 HexByteBuffer[3];
-  for(int HexIndex = 0; HexIndex < HexLength; HexIndex++)
+  for(int HexIndex = 0; HexIndex < ByteBufferSize; HexIndex++)
   {
     FirstHexChar = HexString[HexIndex*2];
     SecondHexChar = HexString[(HexIndex*2)+1];
@@ -75,13 +78,32 @@ int main(int argc, char *argv[])
     HexByteBuffer[2] = 0;
     int8 Byte = strtol((char *)HexByteBuffer, 0, 16);
     ByteBuffer[HexIndex] = Byte;
-    printf("%s: %c %c, %d\n", HexByteBuffer, FirstHexChar, SecondHexChar, Byte);
+    //printf("%d\t%s\t%c\t%c\t%d\t%c\n",
+           //HexIndex, HexByteBuffer, FirstHexChar, SecondHexChar,
+           //Byte, Byte);
   }
 
-  for(int i = 0; i < HexLength; i++)
+  for(int i = 0; i < ByteBufferSize; i++)
   {
     printf("%c", ByteBuffer[i]);
   }
-
   printf("\n");
+
+  uint8 One = 0xff;
+  PrintBits(&One, 1);
+
+  uint8 Base64Padding = 3 - (ByteBufferSize % 3);
+  uint8 Base64Length = (ByteBufferSize + Base64Padding) * 8 / 6;
+  printf("Base64Length: %d, Base64Padding: %d\n",
+         Base64Length, Base64Padding);
+
+  uint8 *Base64Buffer = (uint8 *)malloc(sizeof(uint8) * Base64Length);
+  if(!Base64Buffer) printf("Couldn't allocate Base64Buffer.\n");
+
+  //for(int TripletIndex = 0; TripletIndex <
+
+
+
+  free(ByteBuffer);
+  free(Base64Buffer);
 }
