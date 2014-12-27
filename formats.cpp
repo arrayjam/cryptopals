@@ -72,8 +72,8 @@ DecodeHex(uint8 *HexString)
 {
   byte_buffer *ByteBuffer = (byte_buffer *)malloc(sizeof(byte_buffer));
   ByteBuffer->Size = StringLength(HexString) / 2;
-  printf("HexString: %s\nStringLength(HexString): %lu, ByteBufferSize: %lu\n",
-         HexString, StringLength(HexString), ByteBuffer->Size);
+  //printf("HexString: %s\nStringLength(HexString): %lu, ByteBufferSize: %lu\n",
+         //HexString, StringLength(HexString), ByteBuffer->Size);
 
   ByteBuffer->Buffer = (uint8 *)malloc(sizeof(uint8) * ByteBuffer->Size);
   if(!ByteBuffer->Buffer) printf("Couldn't allocate ByteBuffer.\n");
@@ -213,7 +213,7 @@ EncodeHex(byte_buffer *ByteBuffer)
   }
 
   HexString = HexStringStart;
-  printf("HexString after EncodeHex: %s\n", HexString);
+  //printf("HexString after EncodeHex: %s\n", HexString);
 
   return HexString;
 }
@@ -222,9 +222,9 @@ EncodeHex(byte_buffer *ByteBuffer)
 void
 PrintByteBufferAsHexString(byte_buffer *ByteBuffer)
 {
-  EncodeHex(ByteBuffer);
-
-
+  uint8 *HexString = EncodeHex(ByteBuffer);
+  printf("%s\n", HexString);
+  free(HexString);
 }
 
 void
@@ -237,6 +237,19 @@ PrintByteBufferAsArray(byte_buffer *ByteBuffer)
     printf("%c\t0x%02x\t%d\t", Val, Val, Val);
     PrintBits(&Val, 1);
     printf("\n");
+  }
+}
+
+void
+FreeByteBuffer(byte_buffer *ByteBuffer)
+{
+  if(ByteBuffer)
+  {
+    if(ByteBuffer->Buffer)
+    {
+      free(ByteBuffer->Buffer);
+    }
+    free(ByteBuffer);
   }
 }
 
@@ -267,10 +280,12 @@ Print(void *Value, flag Type, flag PrintOptions)
   {
     PrintByteBufferAsArray(ByteBuffer);
   }
+
+  FreeByteBuffer(ByteBuffer);
 }
 
 bool32
-StringsEqual(uint8 *Str1, uint8 *Str2)
+StringsAreEqual(uint8 *Str1, uint8 *Str2)
 {
   bool32 Result = 0;
   if(StringLength(Str1) != StringLength(Str2)) return Result;
@@ -298,10 +313,12 @@ main(int argc, char *argv[])
     "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
   //"4d616e";
 
-  Print(HexString, HEX_STRING, AS_HEX_STRING);
+  Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING);
   byte_buffer *ByteBuffer = DecodeHex(HexString);
   uint8 *EncodedHexString = EncodeHex(ByteBuffer);
-  printf("here %d\n", StringsEqual(HexString, EncodedHexString));
+  FreeByteBuffer(ByteBuffer);
+  free(EncodedHexString);
+  //printf("here %d\n", StringsAreEqual(HexString, EncodedHexString));
 #if 0
   Print(ByteBuffer, BYTE_BUFFER, AS_STRING);
   PrintByteBufferAsString(ByteBuffer);
