@@ -29,6 +29,7 @@ typedef uint16 flag;
 #define AS_STRING     (1 << 1)
 #define AS_HEX_STRING (1 << 2)
 #define AS_ARRAY      (1 << 3)
+#define AS_BASE64     (1 << 4)
 
 size_t
 StringLength(uint8 *String)
@@ -144,7 +145,7 @@ EncodeBase64(byte_buffer *ByteBuffer)
       (((Mask >> 6) & AsciiTriplet[0]) << 4) |
       (((Mask << 4) & AsciiTriplet[1]) >> 4);
 
-    if (AsciiTriplet[1] && AsciiTriplet[2])
+    if(AsciiTriplet[1] && AsciiTriplet[2])
     {
       Base64Sextet[2] =
         (((Mask >> 4) & AsciiTriplet[1]) << 2) |
@@ -155,7 +156,7 @@ EncodeBase64(byte_buffer *ByteBuffer)
       Base64Sextet[2] = 64;
     }
 
-    if (AsciiTriplet[2])
+    if(AsciiTriplet[2])
     {
       Base64Sextet[3] = (Mask >> 2) & AsciiTriplet[2];
     }
@@ -241,6 +242,14 @@ PrintByteBufferAsArray(byte_buffer *ByteBuffer)
 }
 
 void
+PrintByteBufferAsBase64(byte_buffer *ByteBuffer)
+{
+  uint8 *Base64Buffer = EncodeBase64(ByteBuffer);
+  printf("%s\n", Base64Buffer);
+  free(Base64Buffer);
+}
+
+void
 FreeByteBuffer(byte_buffer *ByteBuffer)
 {
   if(ByteBuffer)
@@ -261,7 +270,7 @@ Print(void *Value, flag Type, flag PrintOptions)
   {
     ByteBuffer = (byte_buffer *)Value;
   }
-  else if (Type & HEX_STRING)
+  else if(Type & HEX_STRING)
   {
     ByteBuffer = DecodeHex((uint8 *)Value);
   }
@@ -276,9 +285,14 @@ Print(void *Value, flag Type, flag PrintOptions)
     PrintByteBufferAsHexString(ByteBuffer);
   }
 
-  if (PrintOptions & AS_ARRAY)
+  if(PrintOptions & AS_ARRAY)
   {
     PrintByteBufferAsArray(ByteBuffer);
+  }
+
+  if(PrintOptions & AS_BASE64)
+  {
+    PrintByteBufferAsBase64(ByteBuffer);
   }
 
   FreeByteBuffer(ByteBuffer);
@@ -291,7 +305,7 @@ StringsAreEqual(uint8 *Str1, uint8 *Str2)
   if(StringLength(Str1) != StringLength(Str2)) return Result;
 
   do {
-    if (*Str1 != *Str2)
+    if(*Str1 != *Str2)
     {
       return Result;
     }
@@ -313,7 +327,7 @@ main(int argc, char *argv[])
     "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
   //"4d616e";
 
-  Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING);
+  Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING|AS_BASE64);
   byte_buffer *ByteBuffer = DecodeHex(HexString);
   uint8 *EncodedHexString = EncodeHex(ByteBuffer);
   FreeByteBuffer(ByteBuffer);
