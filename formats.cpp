@@ -13,9 +13,12 @@ typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
 
-
 typedef float real32;
 typedef double real64;
+
+#define internal static
+#define local_persist static
+#define global_variable static
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
@@ -24,12 +27,85 @@ typedef uint16 flag;
 // NOTE(yuri): Print Types
 #define BYTE_BUFFER   (1 << 1)
 #define HEX_STRING    (1 << 2)
+#define BASE64_STRING (1 << 3)
 
 // NOTE(yuri): Print Options
 #define AS_STRING     (1 << 1)
 #define AS_HEX_STRING (1 << 2)
 #define AS_ARRAY      (1 << 3)
 #define AS_BASE64     (1 << 4)
+
+struct base64_lookup {
+  uint8 *LookupTable;
+  uint8 PaddingByteIndex;
+  uint8 *ReverseLookupTable;
+};
+
+global_variable base64_lookup GlobalBase64Lookup = {};
+
+void
+FillOutGlobalBase64Lookup()
+{
+  size_t Base64TableSize = 65;
+  GlobalBase64Lookup.PaddingByteIndex = 64;
+  GlobalBase64Lookup.LookupTable = (uint8 *)malloc(sizeof(uint8) * Base64TableSize);
+  if(!GlobalBase64Lookup.LookupTable)
+  {
+    printf("Unable to malloc LookupTable in FillOutGlobalBase64Lookup");
+  }
+
+  uint8 *Base64Chars = (uint8 *)
+   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+
+  for(int CharacterIndex = 0;
+      CharacterIndex < Base64TableSize;
+      CharacterIndex++)
+  {
+    GlobalBase64Lookup.LookupTable[CharacterIndex] = Base64Chars[CharacterIndex];
+  }
+
+  int HighestCharCode = -1;
+  for(int Base64TableIndex = 0;
+      Base64TableIndex < Base64TableSize;
+      Base64TableIndex++)
+  {
+    if(GlobalBase64Lookup.LookupTable[Base64TableIndex] > HighestCharCode)
+    {
+      HighestCharCode = GlobalBase64Lookup.LookupTable[Base64TableIndex];
+    }
+  }
+
+  GlobalBase64Lookup.ReverseLookupTable =
+    (uint8 *)malloc(sizeof(uint8) * HighestCharCode + 1);
+
+  if(!GlobalBase64Lookup.ReverseLookupTable)
+  {
+    printf("Unable to malloc ReverseLookupTable in FillOutGlobalBase64Lookup");
+  }
+
+  uint8 CharCode = 0;
+  for(int Base64TableIndex = 0;
+      Base64TableIndex < Base64TableSize;
+      Base64TableIndex++)
+  {
+    CharCode = GlobalBase64Lookup.LookupTable[Base64TableIndex];
+    GlobalBase64Lookup.ReverseLookupTable[CharCode] = (CharCode != 0) ? Base64TableIndex : 0;
+  }
+}
+
+void
+FreeGlobalBase64Lookup()
+{
+  if(GlobalBase64Lookup.LookupTable)
+  {
+    free(GlobalBase64Lookup.LookupTable);
+  }
+
+  if(GlobalBase64Lookup.ReverseLookupTable)
+  {
+    free(GlobalBase64Lookup.ReverseLookupTable);
+  }
+}
 
 size_t
 StringLength(uint8 *String)
@@ -69,15 +145,34 @@ struct byte_buffer
 };
 
 byte_buffer *
-DecodeHex(uint8 *HexString)
+CreateByteBuffer(size_t ByteBufferSize)
 {
   byte_buffer *ByteBuffer = (byte_buffer *)malloc(sizeof(byte_buffer));
-  ByteBuffer->Size = StringLength(HexString) / 2;
-  //printf("HexString: %s\nStringLength(HexString): %lu, ByteBufferSize: %lu\n",
-         //HexString, StringLength(HexString), ByteBuffer->Size);
+  if(!ByteBuffer) printf("Failed to allocate ByteBuffer in CreateByteBuffer\n");
 
+  ByteBuffer->Size = ByteBufferSize;
   ByteBuffer->Buffer = (uint8 *)malloc(sizeof(uint8) * ByteBuffer->Size);
-  if(!ByteBuffer->Buffer) printf("Couldn't allocate ByteBuffer.\n");
+
+  return ByteBuffer;
+}
+
+void
+FreeByteBuffer(byte_buffer *ByteBuffer)
+{
+  if(ByteBuffer)
+  {
+    if(ByteBuffer->Buffer)
+    {
+      free(ByteBuffer->Buffer);
+    }
+    free(ByteBuffer);
+  }
+}
+
+byte_buffer *
+DecodeHex(uint8 *HexString)
+{
+  byte_buffer *ByteBuffer = CreateByteBuffer(StringLength(HexString) / 2);
 
   int8 FirstHexChar, SecondHexChar;
   int8 HexByteBuffer[3];
@@ -96,6 +191,12 @@ DecodeHex(uint8 *HexString)
   }
 
   return ByteBuffer;
+}
+
+byte_buffer *
+DecodeBase64(uint8 *Base64String)
+{
+  return CreateByteBuffer(10);
 }
 
 uint8 *
@@ -118,14 +219,6 @@ EncodeBase64(byte_buffer *ByteBuffer)
   uint8 Base64Sextet[4];
   uint8 Mask = 0xff;
   int Base64Index = 0;
-
-  uint8 Base64LookupTable[] = {
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/', '='
-  };
 
   for(int TripletIndex = 0;
       TripletIndex < PaddedByteBufferSize / 3;
@@ -153,7 +246,7 @@ EncodeBase64(byte_buffer *ByteBuffer)
     }
     else
     {
-      Base64Sextet[2] = 64;
+      Base64Sextet[2] = GlobalBase64Lookup.PaddingByteIndex;
     }
 
     if(AsciiTriplet[2])
@@ -162,32 +255,19 @@ EncodeBase64(byte_buffer *ByteBuffer)
     }
     else
     {
-      Base64Sextet[3] = 64;
+      Base64Sextet[3] = GlobalBase64Lookup.PaddingByteIndex;
     }
-    //PrintBits(&Base64Sextet[0], 1);
-    //PrintBits(&Base64Sextet[1], 1);
-    //PrintBits(&Base64Sextet[2], 1);
-    //PrintBits(&Base64Sextet[3], 1);
-
 
     for(int i = 0; i < ArrayCount(Base64Sextet); i++)
     {
-      //printf("%d: %c\n", Base64Sextet[i], Base64LookupTable[Base64Sextet[i]]);
-
-      //Base64Buffer
-      //printf("%c: TripletIndex: %d, i: %d %d\n", Base64LookupTable[Base64Sextet[i]], TripletIndex, i, Base64Length);
-      //printf("%c", Base64LookupTable[Base64Sextet[i]]);
-      Base64Buffer[Base64Index++] = Base64LookupTable[Base64Sextet[i]];
+      Base64Buffer[Base64Index++] = GlobalBase64Lookup.LookupTable[Base64Sextet[i]];
     }
 
-    //printf("%d, %d\n", TripletIndex, PaddedByteBufferSize / 3);
-    //printf("%c%c%c|\n", AsciiTriplet[0], AsciiTriplet[1], AsciiTriplet[2]);
   }
   Base64Buffer[Base64Index] = 0;
 
   return Base64Buffer;
 }
-
 
 void
 PrintByteBufferAsString(byte_buffer *ByteBuffer)
@@ -199,14 +279,14 @@ PrintByteBufferAsString(byte_buffer *ByteBuffer)
   printf("\n");
 }
 
-uint8*
+uint8 *
 EncodeHex(byte_buffer *ByteBuffer)
 {
   size_t HexStringLength = (ByteBuffer->Size * 2) + 1;
-  uint8* HexString = (uint8 *)malloc(sizeof(uint8) * HexStringLength);
+  uint8 *HexString = (uint8 *)malloc(sizeof(uint8) * HexStringLength);
   if(!HexString) printf("Failed to allocate HexString in EncodeHex\n");
 
-  uint8* HexStringStart = HexString;
+  uint8 *HexStringStart = HexString;
   for(int i = 0; i < ByteBuffer->Size; i++)
   {
     sprintf((char *)HexString, "%02x", ByteBuffer->Buffer[i]);
@@ -218,7 +298,6 @@ EncodeHex(byte_buffer *ByteBuffer)
 
   return HexString;
 }
-
 
 void
 PrintByteBufferAsHexString(byte_buffer *ByteBuffer)
@@ -250,19 +329,6 @@ PrintByteBufferAsBase64(byte_buffer *ByteBuffer)
 }
 
 void
-FreeByteBuffer(byte_buffer *ByteBuffer)
-{
-  if(ByteBuffer)
-  {
-    if(ByteBuffer->Buffer)
-    {
-      free(ByteBuffer->Buffer);
-    }
-    free(ByteBuffer);
-  }
-}
-
-void
 Print(void *Value, flag Type, flag PrintOptions)
 {
   byte_buffer *ByteBuffer;
@@ -273,6 +339,10 @@ Print(void *Value, flag Type, flag PrintOptions)
   else if(Type & HEX_STRING)
   {
     ByteBuffer = DecodeHex((uint8 *)Value);
+  }
+  else if(Type & BASE64_STRING)
+  {
+    ByteBuffer = DecodeBase64((uint8 *)Value);
   }
 
   if(PrintOptions & AS_STRING)
@@ -295,7 +365,10 @@ Print(void *Value, flag Type, flag PrintOptions)
     PrintByteBufferAsBase64(ByteBuffer);
   }
 
-  FreeByteBuffer(ByteBuffer);
+  if(!(Type & BYTE_BUFFER))
+  {
+    FreeByteBuffer(ByteBuffer);
+  }
 }
 
 bool32
@@ -317,6 +390,7 @@ StringsAreEqual(uint8 *Str1, uint8 *Str2)
 int
 main(int argc, char *argv[])
 {
+  FillOutGlobalBase64Lookup();
   //uint8 String;
   //String = 90;
   //PrintBits(&String, sizeof(uint8));
@@ -327,12 +401,17 @@ main(int argc, char *argv[])
     "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
   //"4d616e";
 
-  Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING|AS_BASE64);
+  //Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING|AS_BASE64);
   byte_buffer *ByteBuffer = DecodeHex(HexString);
   uint8 *EncodedHexString = EncodeHex(ByteBuffer);
+
+  uint8 *Base64String = EncodeBase64(ByteBuffer);
+  Print(Base64String, BASE64_STRING, AS_STRING);
+
   FreeByteBuffer(ByteBuffer);
   free(EncodedHexString);
-  //printf("here %d\n", StringsAreEqual(HexString, EncodedHexString));
+  free(Base64String);
+  FreeGlobalBase64Lookup();
 #if 0
   Print(ByteBuffer, BYTE_BUFFER, AS_STRING);
   PrintByteBufferAsString(ByteBuffer);
