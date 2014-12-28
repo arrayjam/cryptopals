@@ -152,6 +152,7 @@ CreateByteBuffer(size_t ByteBufferSize)
 
   ByteBuffer->Size = ByteBufferSize;
   ByteBuffer->Buffer = (uint8 *)malloc(sizeof(uint8) * ByteBuffer->Size);
+  if(!ByteBuffer->Buffer) printf("Failed to allocate Buffer in ByteBuffer in CreateByteBuffer\n");
 
   return ByteBuffer;
 }
@@ -196,7 +197,12 @@ DecodeHex(uint8 *HexString)
 byte_buffer *
 DecodeBase64(uint8 *Base64String)
 {
-  return CreateByteBuffer(10);
+  byte_buffer *ByteBuffer = CreateByteBuffer(10);
+  for(int i = 0; i < ByteBuffer->Size; i++)
+  {
+    ByteBuffer->Buffer[i] = 65;
+  }
+  return ByteBuffer;
 }
 
 uint8 *
@@ -220,15 +226,21 @@ EncodeBase64(byte_buffer *ByteBuffer)
   uint8 Mask = 0xff;
   int Base64Index = 0;
 
+  // TODO(yuri): Use htobe32 to get a block of memory
   for(int TripletIndex = 0;
       TripletIndex < PaddedByteBufferSize / 3;
       TripletIndex++)
   {
+    int ByteBufferIndex;
     for(int i = 0; i < ArrayCount(AsciiTriplet); i++)
     {
-      // TODO(yuri): Does filling this out backward with 2-i give us the right
-      // block of memory?
-      AsciiTriplet[i] = ByteBuffer->Buffer[TripletIndex*3 + i];
+      ByteBufferIndex = TripletIndex*3 + i;
+      // NOTE(yuri): We might want to read another byte, but can't.
+      // We'll have to pad the remaining amount.
+      if(ByteBufferIndex < ByteBuffer->Size)
+      {
+        AsciiTriplet[i] = ByteBuffer->Buffer[TripletIndex*3 + i];
+      }
     }
 
     // TODO(yuri): There has to be a better way of doing this.
@@ -406,6 +418,7 @@ main(int argc, char *argv[])
   uint8 *EncodedHexString = EncodeHex(ByteBuffer);
 
   uint8 *Base64String = EncodeBase64(ByteBuffer);
+  //Print(ByteBuffer, BYTE_BUFFER, AS_STRING);
   Print(Base64String, BASE64_STRING, AS_STRING);
 
   FreeByteBuffer(ByteBuffer);
