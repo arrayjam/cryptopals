@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "portable_endian.h"
 
 typedef int8_t int8;
 typedef int16_t int16;
@@ -32,8 +33,10 @@ typedef uint16 flag;
 // NOTE(yuri): Print Options
 #define AS_STRING     (1 << 1)
 #define AS_HEX_STRING (1 << 2)
-#define AS_ARRAY      (1 << 3)
+#define AS_DUMP       (1 << 3)
 #define AS_BASE64     (1 << 4)
+
+void Print(void *Value, flag Type, flag PrintOptions);
 
 struct base64_lookup {
   uint8 *LookupTable;
@@ -135,7 +138,28 @@ PrintBits(uint8 *Value, size_t Size)
       //printf("i: %d, j: %d, byte: %u\n", ByteIndex, BitIndex, Byte);
       printf("%u", Byte);
     }
+    printf(" ");
   }
+}
+
+void
+Print32Bits(uint32 *Value, size_t Size)
+{
+  uint8 Byte;
+  int ByteIndex, BitIndex;
+
+  for(ByteIndex = Size - 1; ByteIndex >= 0; ByteIndex--)
+  {
+    for(BitIndex = 31; BitIndex >= 0; BitIndex--)
+    {
+      Byte = Value[ByteIndex] & (1 << BitIndex);
+      Byte >>= BitIndex;
+      //printf("i: %d, j: %d, byte: %u\n", ByteIndex, BitIndex, Byte);
+      printf("%u", Byte);
+      if(BitIndex % 8 == 0) printf(" ");
+    }
+  }
+  printf("\n");
 }
 
 struct byte_buffer
@@ -205,82 +229,6 @@ DecodeBase64(uint8 *Base64String)
   return ByteBuffer;
 }
 
-uint8 *
-EncodeBase64(byte_buffer *ByteBuffer)
-{
-  uint8 Base64Padding = (ByteBuffer->Size % 3 != 0) ? (3 - (ByteBuffer->Size % 3)) : 0;
-  uint8 PaddedByteBufferSize = ByteBuffer->Size + Base64Padding;
-  // NOTE(yuri): +1 length for NUL
-  uint8 Base64Length = (PaddedByteBufferSize * 8 / 6) + 1;
-  printf("Base64Length: %d, Base64Padding: %d\n",
-         Base64Length, Base64Padding);
-
-  uint8 *Base64Buffer = (uint8 *)malloc(sizeof(uint8) * Base64Length);
-  if(!Base64Buffer) printf("Couldn't allocate Base64Buffer.\n");
-
-  printf("ByteBufferSize: %lu, Base64Remainder: %d\n",
-         ByteBuffer->Size, Base64Padding);
-
-  uint8 AsciiTriplet[3];
-  uint8 Base64Sextet[4];
-  uint8 Mask = 0xff;
-  int Base64Index = 0;
-
-  // TODO(yuri): Use htobe32 to get a block of memory
-  for(int TripletIndex = 0;
-      TripletIndex < PaddedByteBufferSize / 3;
-      TripletIndex++)
-  {
-    int ByteBufferIndex;
-    for(int i = 0; i < ArrayCount(AsciiTriplet); i++)
-    {
-      ByteBufferIndex = TripletIndex*3 + i;
-      // NOTE(yuri): We might want to read another byte, but can't.
-      // We'll have to pad the remaining amount.
-      if(ByteBufferIndex < ByteBuffer->Size)
-      {
-        AsciiTriplet[i] = ByteBuffer->Buffer[TripletIndex*3 + i];
-      }
-    }
-
-    // TODO(yuri): There has to be a better way of doing this.
-    Base64Sextet[0] = ((Mask << 2) & AsciiTriplet[0]) >> 2;
-
-    Base64Sextet[1] =
-      (((Mask >> 6) & AsciiTriplet[0]) << 4) |
-      (((Mask << 4) & AsciiTriplet[1]) >> 4);
-
-    if(AsciiTriplet[1] && AsciiTriplet[2])
-    {
-      Base64Sextet[2] =
-        (((Mask >> 4) & AsciiTriplet[1]) << 2) |
-        (((Mask << 6) & AsciiTriplet[2]) >> 6);
-    }
-    else
-    {
-      Base64Sextet[2] = GlobalBase64Lookup.PaddingByteIndex;
-    }
-
-    if(AsciiTriplet[2])
-    {
-      Base64Sextet[3] = (Mask >> 2) & AsciiTriplet[2];
-    }
-    else
-    {
-      Base64Sextet[3] = GlobalBase64Lookup.PaddingByteIndex;
-    }
-
-    for(int i = 0; i < ArrayCount(Base64Sextet); i++)
-    {
-      Base64Buffer[Base64Index++] = GlobalBase64Lookup.LookupTable[Base64Sextet[i]];
-    }
-
-  }
-  Base64Buffer[Base64Index] = 0;
-
-  return Base64Buffer;
-}
-
 void
 PrintByteBufferAsString(byte_buffer *ByteBuffer)
 {
@@ -332,6 +280,117 @@ PrintByteBufferAsArray(byte_buffer *ByteBuffer)
   }
 }
 
+bool32
+StringsAreEqual(uint8 *Str1, uint8 *Str2)
+{
+  bool32 Result = 0;
+  if(StringLength(Str1) != StringLength(Str2)) return Result;
+
+  do {
+    if(*Str1 != *Str2)
+    {
+      return Result;
+    }
+  } while (*Str1++ && *Str2++);
+
+  return 1;
+}
+
+uint8 *
+EncodeBase64(byte_buffer *ByteBuffer)
+{
+  uint8 Base64Padding = (ByteBuffer->Size % 3 != 0) ? (3 - (ByteBuffer->Size % 3)) : 0;
+  uint8 PaddedByteBufferSize = ByteBuffer->Size + Base64Padding;
+  // NOTE(yuri): +1 length for NUL
+  uint8 Base64Length = (PaddedByteBufferSize * 8 / 6) + 1;
+  printf("Base64Length: %d, Base64Padding: %d\n",
+         Base64Length, Base64Padding);
+
+  uint8 *Base64Buffer = (uint8 *)malloc(sizeof(uint8) * Base64Length);
+  if(!Base64Buffer) printf("Couldn't allocate Base64Buffer.\n");
+
+  printf("ByteBufferSize: %lu, Base64Remainder: %d\n",
+         ByteBuffer->Size, Base64Padding);
+
+  uint8 Octet;
+  uint32 QuadSextet = {0};
+  QuadSextet = htobe32(QuadSextet);
+  uint8 SixBitMask = 0xff >> 2;
+  int Base64Index = 0;
+
+  for(int TripletIndex = 0;
+      TripletIndex < PaddedByteBufferSize / 3;
+      TripletIndex++)
+  {
+    QuadSextet = 0;
+    int ByteBufferIndex;
+    for(int TriOctetIndex = 0; TriOctetIndex < 3; TriOctetIndex++)
+    {
+      ByteBufferIndex = TripletIndex*3 + TriOctetIndex;
+      // TODO(yuri): Padding?
+      Octet = ByteBuffer->Buffer[ByteBufferIndex];
+      QuadSextet <<= 8;
+      QuadSextet |= (uint32)Octet;
+    }
+
+    uint8 Sextet;
+    for(int SextetIndex = 3; SextetIndex >= 0; SextetIndex--)
+    {
+      Sextet = (QuadSextet >> (SextetIndex * 6)) & SixBitMask;
+      uint8 Base64Char = GlobalBase64Lookup.LookupTable[Sextet];
+      Base64Buffer[Base64Index++] = Base64Char;
+    }
+    //for(int i = 0; i < ArrayCount(QuadSextet); i++)
+    //{
+      //Base64Buffer[Base64Index++] =
+    //}
+
+
+
+
+
+
+
+
+
+    // TODO(yuri): There has to be a better way of doing this.
+    //QuadSextet[0] = ((Mask << 2) & TriOctet[0]) >> 2;
+
+    //QuadSextet[1] =
+      //(((Mask >> 6) & TriOctet[0]) << 4) |
+      //(((Mask << 4) & TriOctet[1]) >> 4);
+
+    //if(TriOctet[1] && TriOctet[2])
+    //{
+      //QuadSextet[2] =
+        //(((Mask >> 4) & TriOctet[1]) << 2) |
+        //(((Mask << 6) & TriOctet[2]) >> 6);
+    //}
+    //else
+    //{
+      //QuadSextet[2] = GlobalBase64Lookup.PaddingByteIndex;
+    //}
+
+    //if(TriOctet[2])
+    //{
+      //QuadSextet[3] = (Mask >> 2) & TriOctet[2];
+    //}
+    //else
+    //{
+      //QuadSextet[3] = GlobalBase64Lookup.PaddingByteIndex;
+    //}
+
+    //for(int i = 0; i < ArrayCount(QuadSextet); i++)
+    //{
+      //Base64Buffer[Base64Index++] = GlobalBase64Lookup.LookupTable[QuadSextet[i]];
+    //}
+
+  }
+  Base64Buffer[Base64Index] = 0;
+
+  return Base64Buffer;
+}
+
 void
 PrintByteBufferAsBase64(byte_buffer *ByteBuffer)
 {
@@ -339,6 +398,7 @@ PrintByteBufferAsBase64(byte_buffer *ByteBuffer)
   printf("%s\n", Base64Buffer);
   free(Base64Buffer);
 }
+
 
 void
 Print(void *Value, flag Type, flag PrintOptions)
@@ -367,7 +427,7 @@ Print(void *Value, flag Type, flag PrintOptions)
     PrintByteBufferAsHexString(ByteBuffer);
   }
 
-  if(PrintOptions & AS_ARRAY)
+  if(PrintOptions & AS_DUMP)
   {
     PrintByteBufferAsArray(ByteBuffer);
   }
@@ -383,43 +443,24 @@ Print(void *Value, flag Type, flag PrintOptions)
   }
 }
 
-bool32
-StringsAreEqual(uint8 *Str1, uint8 *Str2)
-{
-  bool32 Result = 0;
-  if(StringLength(Str1) != StringLength(Str2)) return Result;
-
-  do {
-    if(*Str1 != *Str2)
-    {
-      return Result;
-    }
-  } while (*Str1++ && *Str2++);
-
-  return 1;
-}
 
 int
 main(int argc, char *argv[])
 {
   FillOutGlobalBase64Lookup();
-  //uint8 String;
-  //String = 90;
-  //PrintBits(&String, sizeof(uint8));
-  //String = strtol("5a", 0, 16);
-  //PrintBits(&String, sizeof(uint8));
 
   uint8 *HexString = (uint8 *)
-    "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
-  //"4d616e";
+    //"49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
+  "4d616e";
 
   //Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING|AS_BASE64);
   byte_buffer *ByteBuffer = DecodeHex(HexString);
   uint8 *EncodedHexString = EncodeHex(ByteBuffer);
+  Print(ByteBuffer, BYTE_BUFFER, AS_BASE64);
 
+  printf("hurr");
   uint8 *Base64String = EncodeBase64(ByteBuffer);
   //Print(ByteBuffer, BYTE_BUFFER, AS_STRING);
-  Print(Base64String, BASE64_STRING, AS_STRING);
 
   FreeByteBuffer(ByteBuffer);
   free(EncodedHexString);
