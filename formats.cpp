@@ -32,7 +32,7 @@ typedef uint16 flag;
 
 // NOTE(yuri): Print Options
 #define AS_STRING     (1 << 1)
-#define AS_HEX_STRING (1 << 2)
+#define AS_HEX        (1 << 2)
 #define AS_DUMP       (1 << 3)
 #define AS_BASE64     (1 << 4)
 
@@ -421,7 +421,7 @@ Print(void *Value, flag Type, flag PrintOptions)
         PrintByteBufferAsString(ByteBuffer);
     }
 
-    if(PrintOptions & AS_HEX_STRING)
+    if(PrintOptions & AS_HEX)
     {
         PrintByteBufferAsHexString(ByteBuffer);
     }
@@ -449,41 +449,13 @@ main(int argc, char *argv[])
     FillOutGlobalBase64Lookup();
 
     uint8 *HexString = (uint8 *)
-        "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
-        // "4d616e";
+        "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d";
 
-    // Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING|AS_BASE64);
-    byte_buffer *ByteBuffer = DecodeHex(HexString);
-    uint8 *EncodedHexString = EncodeHex(ByteBuffer);
-    Print(ByteBuffer, BYTE_BUFFER, AS_BASE64);
+    uint8 *Base64String = (uint8 *)
+        "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t";
 
-    uint8 *Base64String = EncodeBase64(ByteBuffer);
-    Print(Base64String, BASE64_STRING, AS_STRING);
+    Print(HexString, HEX_STRING, AS_BASE64);
+    Print(Base64String, BASE64_STRING, AS_HEX);
 
-    FreeByteBuffer(ByteBuffer);
-    free(EncodedHexString);
-    free(Base64String);
     FreeGlobalBase64Lookup();
-#if 0
-    Print(ByteBuffer, BYTE_BUFFER, AS_STRING);
-    PrintByteBufferAsString(ByteBuffer);
-
-    uint8 One = 0xff;
-    PrintBits(&One, 1);
-
-    printf("\n");
-
-    uint8 *Base64Buffer = EncodeBase64(ByteBuffer);
-    for(int i = 0; i < StringLength(Base64Buffer) + 1; i++)
-    {
-        //printf("%d|\t%d\n", Base64Buffer[i], i);
-    }
-    printf("\n");
-
-
-
-    free(ByteBuffer->Buffer);
-    free(ByteBuffer);
-    free(Base64Buffer);
-#endif
 }
