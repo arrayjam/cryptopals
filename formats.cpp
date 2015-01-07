@@ -218,17 +218,6 @@ DecodeHex(uint8 *HexString)
     return ByteBuffer;
 }
 
-byte_buffer *
-DecodeBase64(uint8 *Base64String)
-{
-    byte_buffer *ByteBuffer = CreateByteBuffer(10);
-    for(int i = 0; i < ByteBuffer->Size; i++)
-    {
-        ByteBuffer->Buffer[i] = 65;
-    }
-    return ByteBuffer;
-}
-
 void
 PrintByteBufferAsString(byte_buffer *ByteBuffer)
 {
@@ -268,7 +257,7 @@ PrintByteBufferAsHexString(byte_buffer *ByteBuffer)
 }
 
 void
-PrintByteBufferAsArray(byte_buffer *ByteBuffer)
+PrintByteBufferAsDump(byte_buffer *ByteBuffer)
 {
     printf("Char\tHex\tDec\tBin\n");
     for(int i = 0; i < ByteBuffer->Size; i++)
@@ -296,6 +285,58 @@ StringsAreEqual(uint8 *Str1, uint8 *Str2)
     return 1;
 }
 
+byte_buffer *
+DecodeBase64(uint8 *Base64String)
+{
+    size_t Base64Length = StringLength(Base64String);
+
+    int Base64Padding = 0;
+    if(GlobalBase64Lookup.ReverseLookupTable[Base64String[Base64Length - 1]] == GlobalBase64Lookup.PaddingByteIndex)
+    {
+        Base64Padding++;
+    }
+    if(GlobalBase64Lookup.ReverseLookupTable[Base64String[Base64Length - 2]] == GlobalBase64Lookup.PaddingByteIndex)
+    {
+        Base64Padding++;
+    }
+
+    size_t ByteBufferSize = (Base64Length * 6 / 8) - Base64Padding;
+    byte_buffer *ByteBuffer = CreateByteBuffer(ByteBufferSize);
+
+    uint8 ByteMask = 0xff;
+    int ByteBufferIndex = 0;
+
+
+    for(int QuadrupletIndex = 0;
+        QuadrupletIndex < Base64Length / 4;
+        QuadrupletIndex++)
+    {
+        uint32 QuadSextet = 0;
+        for(int QuadSextetIndex = 0;
+            QuadSextetIndex < 4;
+            QuadSextetIndex++)
+        {
+            int Base64Index = QuadrupletIndex*4 + QuadSextetIndex;
+            uint8 Base64Char = Base64String[Base64Index];
+            uint8 Base64CharIndex = GlobalBase64Lookup.ReverseLookupTable[Base64Char];
+
+            QuadSextet |= Base64CharIndex;
+            QuadSextet <<= 6;
+        }
+        // NOTE(yuri): Shift back by 6 because of extraneous shift above on last loop
+        QuadSextet >>= 6;
+
+        for(int TriOctetIndex = 0;
+            TriOctetIndex < 3;
+            TriOctetIndex++)
+        {
+            ByteBuffer->Buffer[ByteBufferIndex++] = (QuadSextet >> ((2 - TriOctetIndex) * 8)) & ByteMask;
+        }
+    }
+
+    return ByteBuffer;
+}
+
 uint8 *
 EncodeBase64(byte_buffer *ByteBuffer)
 {
@@ -309,7 +350,7 @@ EncodeBase64(byte_buffer *ByteBuffer)
 
     uint8 Octet;
     uint8 Sextet;
-    uint32 QuadSextet = {0};
+    uint32 QuadSextet;
 
     // NOTE(yuri): This ensures that we're representing our 4 6-bit
     // values in memory as big-endian
@@ -332,11 +373,11 @@ EncodeBase64(byte_buffer *ByteBuffer)
             QuadSextet |= (uint32)Octet;
         }
 
-        for(int SextetIndex = 3; SextetIndex >= 0; SextetIndex--)
+        for(int QuadSextetIndex = 3; QuadSextetIndex >= 0; QuadSextetIndex--)
         {
             if((Base64Length - Base64Padding) > Base64Index)
             {
-                Sextet = (QuadSextet >> (SextetIndex * 6)) & SixBitMask;
+                Sextet = (QuadSextet >> (QuadSextetIndex * 6)) & SixBitMask;
             } else {
                 Sextet = GlobalBase64Lookup.PaddingByteIndex;
             }
@@ -387,7 +428,7 @@ Print(void *Value, flag Type, flag PrintOptions)
 
     if(PrintOptions & AS_DUMP)
     {
-        PrintByteBufferAsArray(ByteBuffer);
+        PrintByteBufferAsDump(ByteBuffer);
     }
 
     if(PrintOptions & AS_BASE64)
@@ -409,16 +450,15 @@ main(int argc, char *argv[])
 
     uint8 *HexString = (uint8 *)
         "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d5a";
-    //"4d616e";
+        // "4d616e";
 
-    //Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING|AS_BASE64);
+    // Print(HexString, HEX_STRING, AS_HEX_STRING|AS_STRING|AS_BASE64);
     byte_buffer *ByteBuffer = DecodeHex(HexString);
     uint8 *EncodedHexString = EncodeHex(ByteBuffer);
     Print(ByteBuffer, BYTE_BUFFER, AS_BASE64);
 
-    printf("hurr");
     uint8 *Base64String = EncodeBase64(ByteBuffer);
-    //Print(ByteBuffer, BYTE_BUFFER, AS_STRING);
+    Print(Base64String, BASE64_STRING, AS_STRING);
 
     FreeByteBuffer(ByteBuffer);
     free(EncodedHexString);
