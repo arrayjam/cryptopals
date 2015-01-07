@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "portable_endian.h"
 
 typedef int8_t int8;
@@ -442,12 +443,37 @@ Print(void *Value, flag Type, flag PrintOptions)
     }
 }
 
+byte_buffer *
+XORBuffers(byte_buffer *A, byte_buffer *B)
+{
+    assert(A->Size == B->Size);
+    byte_buffer *Result = CreateByteBuffer(A->Size);
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < Result->Size;
+        ByteBufferIndex++)
+    {
+        Result->Buffer[ByteBufferIndex] =
+            A->Buffer[ByteBufferIndex] ^ B->Buffer[ByteBufferIndex];
+    }
+    return Result;
+}
+
 
 int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
 
+    byte_buffer *A = DecodeHex((uint8 *)"1c0111001f010100061a024b53535009181c");
+    byte_buffer *B = DecodeHex((uint8 *)"686974207468652062756c6c277320657965");
+    Print(A, BYTE_BUFFER, AS_STRING);
+    Print(B, BYTE_BUFFER, AS_STRING);
+    byte_buffer *X = XORBuffers(A, B);
+    Print(X, BYTE_BUFFER, AS_HEX|AS_STRING);
+
+// Challenge 1
+#if 0
     uint8 *HexString = (uint8 *)
         "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d";
 
@@ -456,6 +482,7 @@ main(int argc, char *argv[])
 
     Print(HexString, HEX_STRING, AS_BASE64);
     Print(Base64String, BASE64_STRING, AS_HEX);
+#endif
 
     FreeGlobalBase64Lookup();
 }
