@@ -40,6 +40,7 @@ typedef uint16 flag;
 
 void Challenge1();
 void Challenge2();
+void Challenge3();
 
 void Print(void *Value, flag Type, flag PrintOptions);
 
@@ -197,6 +198,21 @@ FreeByteBuffer(byte_buffer *ByteBuffer)
         }
         free(ByteBuffer);
     }
+}
+
+byte_buffer *
+CopyByteBuffer(byte_buffer *ByteBuffer)
+{
+    byte_buffer *Result = CreateByteBuffer(ByteBuffer->Size);
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < ByteBuffer->Size;
+        ByteBufferIndex++)
+    {
+        Result->Buffer[ByteBufferIndex] = ByteBuffer->Buffer[ByteBufferIndex];
+    }
+
+    return Result;
 }
 
 byte_buffer *
@@ -460,15 +476,98 @@ XORBuffers(byte_buffer *A, byte_buffer *B)
         Result->Buffer[ByteBufferIndex] =
             A->Buffer[ByteBufferIndex] ^ B->Buffer[ByteBufferIndex];
     }
+
     return Result;
 }
 
+// byte_buffer *
+// XORBufferSingleChar(byte_buffer *ByteBuffer, uint8 XORChar)
+// {
+//     byte_buffer *Result = CreateByteBuffer(ByteBuffer->Size);
+//     for(int ByteBufferIndex = 0;
+//         ByteBufferIndex < Result->Size;
+//         ByteBufferIndex++)
+//     {
+//         Result->Buffer[ByteBufferIndex] =
+//             ByteBuffer->Buffer[ByteBufferIndex] ^ XORChar;
+//     }
+
+//     return Result;
+// }
+
+real32
+ScoreLetter(uint8 Letter)
+{
+    real32 Result = 0.0f;
+    real32 EnglishLetterFrequencies[] = {
+        8.167, 1.492, 2.782, 4.253, 2.702, 2.228, 2.015, 6.094, 6.966, 0.153, 0.772, 4.025, 2.406,
+        6.749, 7.507, 1.929, 0.095, 5.987, 6.327, 9.056, 2.758, 0.978, 2.360, 0.150, 1.974, 0.074
+    };
+
+    int FrequencyTableIndex = tolower(Letter) - 97;
+    if(FrequencyTableIndex >= 0 && FrequencyTableIndex < 26)
+    {
+        Result = EnglishLetterFrequencies[FrequencyTableIndex];
+    }
+    return Result;
+}
 
 int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
+
+    Challenge1();
+    Challenge2();
+    Challenge3();
     FreeGlobalBase64Lookup();
+}
+
+void
+Challenge3()
+{
+    real32 BestScore = 0;
+    byte_buffer *BestScoreBuffer = {0};
+    byte_buffer *CipherText =
+        DecodeHex((uint8 *)"1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+
+    byte_buffer *XORBuffer = CreateByteBuffer(CipherText->Size);
+    for(int Char = 0;
+        Char < 256;
+        Char++)
+    {
+        for(int ByteBufferIndex = 0;
+            ByteBufferIndex < CipherText->Size;
+            ByteBufferIndex++)
+        {
+            XORBuffer->Buffer[ByteBufferIndex] =
+                CipherText->Buffer[ByteBufferIndex] ^ (uint8)Char;
+        }
+
+        real32 Score = 0;
+        for(int ByteBufferIndex = 0;
+            ByteBufferIndex < CipherText->Size;
+            ByteBufferIndex++)
+        {
+            Score += ScoreLetter(XORBuffer->Buffer[ByteBufferIndex]);
+        }
+
+        // NOTE(yuri): Normalize string score
+        Score /= XORBuffer->Size;
+
+        if(Score > BestScore)
+        {
+            FreeByteBuffer(BestScoreBuffer);
+
+            BestScoreBuffer = CopyByteBuffer(XORBuffer);
+            BestScore = Score;
+        }
+    }
+    Print(BestScoreBuffer, BYTE_BUFFER, AS_STRING);
+
+    FreeByteBuffer(BestScoreBuffer);
+    FreeByteBuffer(CipherText);
+    FreeByteBuffer(XORBuffer);
 }
 
 void
