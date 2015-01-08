@@ -37,6 +37,9 @@ typedef uint16 flag;
 #define AS_DUMP       (1 << 3)
 #define AS_BASE64     (1 << 4)
 
+void Challenge1();
+void Challenge2();
+
 void Print(void *Value, flag Type, flag PrintOptions);
 
 struct base64_lookup {
@@ -464,16 +467,12 @@ int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
+    FreeGlobalBase64Lookup();
+}
 
-    byte_buffer *A = DecodeHex((uint8 *)"1c0111001f010100061a024b53535009181c");
-    byte_buffer *B = DecodeHex((uint8 *)"686974207468652062756c6c277320657965");
-    Print(A, BYTE_BUFFER, AS_STRING);
-    Print(B, BYTE_BUFFER, AS_STRING);
-    byte_buffer *X = XORBuffers(A, B);
-    Print(X, BYTE_BUFFER, AS_HEX|AS_STRING);
-
-// Challenge 1
-#if 0
+void
+Challenge1()
+{
     uint8 *HexString = (uint8 *)
         "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d";
 
@@ -482,7 +481,15 @@ main(int argc, char *argv[])
 
     Print(HexString, HEX_STRING, AS_BASE64);
     Print(Base64String, BASE64_STRING, AS_HEX);
-#endif
+}
 
-    FreeGlobalBase64Lookup();
+void
+Challenge2()
+{
+    byte_buffer *A = DecodeHex((uint8 *)"1c0111001f010100061a024b53535009181c");
+    byte_buffer *B = DecodeHex((uint8 *)"686974207468652062756c6c277320657965");
+    Print(A, BYTE_BUFFER, AS_STRING);
+    Print(B, BYTE_BUFFER, AS_STRING);
+    byte_buffer *X = XORBuffers(A, B);
+    Print(X, BYTE_BUFFER, AS_HEX|AS_STRING);
 }
