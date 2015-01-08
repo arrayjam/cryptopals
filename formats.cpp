@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <ctype.h>
 #include "portable_endian.h"
 
 typedef int8_t int8;
@@ -492,4 +493,8 @@ Challenge2()
     Print(B, BYTE_BUFFER, AS_STRING);
     byte_buffer *X = XORBuffers(A, B);
     Print(X, BYTE_BUFFER, AS_HEX|AS_STRING);
+
+    FreeByteBuffer(A);
+    FreeByteBuffer(B);
+    FreeByteBuffer(X);
 }
