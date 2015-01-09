@@ -517,9 +517,29 @@ main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
 
-    Challenge1();
-    Challenge2();
-    Challenge3();
+    uint8 *FileBuffer = 0;
+    size_t FileContentsLength;
+    FILE *File = fopen("data/4.txt", "r");
+
+    if(File)
+    {
+        fseek(File, 0, SEEK_END);
+        FileContentsLength = ftell(File);
+        fseek(File, 0, SEEK_SET);
+        FileBuffer = (uint8 *)malloc(sizeof(uint8) * FileContentsLength);
+        if(FileBuffer)
+        {
+            fread(FileBuffer, 1, FileContentsLength, File);
+        }
+        fclose (File);
+    }
+
+    if (FileBuffer)
+    {
+        bool32 TrailingNewLine = *(FileBuffer + FileContentsLength - 1) == '\n';
+    }
+
+
     FreeGlobalBase64Lookup();
 }
 
@@ -568,6 +588,7 @@ Challenge3()
     FreeByteBuffer(BestScoreBuffer);
     FreeByteBuffer(CipherText);
     FreeByteBuffer(XORBuffer);
+    printf("\n");
 }
 
 void
@@ -581,6 +602,7 @@ Challenge1()
 
     Print(HexString, HEX_STRING, AS_BASE64);
     Print(Base64String, BASE64_STRING, AS_HEX);
+    printf("\n");
 }
 
 void
@@ -596,4 +618,5 @@ Challenge2()
     FreeByteBuffer(A);
     FreeByteBuffer(B);
     FreeByteBuffer(X);
+    printf("\n");
 }
