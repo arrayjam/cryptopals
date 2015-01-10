@@ -42,6 +42,7 @@ typedef uint16 flag;
 void Challenge1();
 void Challenge2();
 void Challenge3();
+void Challenge4();
 
 void Print(void *Value, flag Type, flag PrintOptions);
 
@@ -653,7 +654,14 @@ int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
+    Challenge4();
 
+    FreeGlobalBase64Lookup();
+}
+
+void
+Challenge4()
+{
     uint8 *FileBuffer = 0;
     size_t FileContentsLength;
     FILE *File = fopen("data/4.txt", "r");
@@ -687,7 +695,7 @@ main(int argc, char *argv[])
         uint8 **CipherTexts = (uint8 **)malloc(sizeof(uint8 *) * LinesCount);
         if(CipherTexts == 0) printf("Allocating CipherTexts failed\n");
 
-        printf("Allocated CipherTexts of size %d\n", LinesCount);
+        // printf("Allocated CipherTexts of size %d\n", LinesCount);
 
         // NOTE(yuri): Allocate arrays for strings and copy over strings
         uint8 *CurrentLinePointer = FileBuffer;
@@ -745,9 +753,6 @@ main(int argc, char *argv[])
         free(CipherTexts);
     }
     free(FileBuffer);
-
-
-    FreeGlobalBase64Lookup();
 }
 
 void
