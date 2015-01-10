@@ -295,27 +295,35 @@ PrintByteBufferAsDump(byte_buffer *ByteBuffer)
     for(int i = 0; i < ByteBuffer->Size; i++)
     {
         uint8 Val = ByteBuffer->Buffer[i];
-        switch(Val)
+        if(Val == '\n')
         {
-            case '\n':
-                printf("\\n");
-                break;
-            case '\r':
-                printf("\\r");
-                break;
-            case '\t':
-                printf("\\t");
-                break;
-            case 0:
-                printf("\\0");
-                break;
-            default:
-                printf("%c", Val);
+            printf("\\n");
+        }
+        else if(Val == '\r')
+        {
+            printf("\\r");
+        }
+        else if(Val == '\t')
+        {
+            printf("\\t");
+        }
+        else if(Val == 0)
+        {
+            printf("\\0");
+        }
+        else if(!isprint(Val))
+        {
+            printf(".");
+        }
+        else
+        {
+            printf("%c", Val);
         }
         printf("\t0x%02x\t%d\t", Val, Val);
         PrintBits(&Val, 1);
         printf("\n");
     }
+    printf("\n");
 }
 
 bool32
@@ -528,20 +536,20 @@ XORBuffers(byte_buffer *A, byte_buffer *B)
     return Result;
 }
 
-// byte_buffer *
-// XORBufferSingleChar(byte_buffer *ByteBuffer, uint8 XORChar)
-// {
-//     byte_buffer *Result = CreateByteBuffer(ByteBuffer->Size);
-//     for(int ByteBufferIndex = 0;
-//         ByteBufferIndex < Result->Size;
-//         ByteBufferIndex++)
-//     {
-//         Result->Buffer[ByteBufferIndex] =
-//             ByteBuffer->Buffer[ByteBufferIndex] ^ XORChar;
-//     }
+byte_buffer *
+XORBufferSingleChar(byte_buffer *ByteBuffer, uint8 XORChar)
+{
+    byte_buffer *Result = CreateByteBuffer(ByteBuffer->Size);
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < Result->Size;
+        ByteBufferIndex++)
+    {
+        Result->Buffer[ByteBufferIndex] =
+            ByteBuffer->Buffer[ByteBufferIndex] ^ XORChar;
+    }
 
-//     return Result;
-// }
+    return Result;
+}
 
 real32
 ScoreLetter(uint8 Letter)
@@ -617,6 +625,7 @@ main(int argc, char *argv[])
             CipherTextIndex < LinesCount;
             CipherTextIndex++)
         {
+
             int CharCount = CountToChar(CurrentLinePointer, '\n', &NextLinePointer);
             CipherTexts[CipherTextIndex] = (uint8 *)malloc(sizeof(uint8) * (CharCount + 1));
 
@@ -631,7 +640,60 @@ main(int argc, char *argv[])
             CurrentLinePointer = NextLinePointer;
             CipherTexts[CipherTextIndex][CharIndex] = 0;
         }
+
+#if 0
+        for(int i = 0;
+            i < LinesCount;
+            i++)
+        {
+            Print(CipherTexts[i], HEX_STRING, AS_DUMP);
+        }
+#endif
+
+        real32 BestScore = 0;
+        byte_buffer *BestScoreBuffer = {0};
+        byte_buffer *CipherText;
+
+        for(int LineIndex = 0;
+            LineIndex < LinesCount;
+            LineIndex++)
+        {
+            byte_buffer *CandidateBuffer = DecodeHex(CipherTexts[LineIndex]);
+            byte_buffer *XORBuffer = CreateByteBuffer(CandidateBuffer->Size);
+
+            for(int XORChar = 0;
+                XORChar < 256;
+                XORChar++)
+            {
+                real32 Score = 0;
+                for(int ByteBufferIndex = 0;
+                    ByteBufferIndex < CandidateBuffer->Size;
+                    ByteBufferIndex++)
+                {
+                    XORBuffer->Buffer[ByteBufferIndex] =
+                        CandidateBuffer->Buffer[ByteBufferIndex] ^ (uint8)XORChar;
+                }
+                for(int ByteBufferIndex = 0;
+                    ByteBufferIndex < CandidateBuffer->Size;
+                    ByteBufferIndex++)
+                {
+                    Score += ScoreLetter(XORBuffer->Buffer[ByteBufferIndex]);
+                }
+                // NOTE(yuri): Normalize string score
+                Score /= XORBuffer->Size;
+                if(Score > BestScore)
+                {
+                    FreeByteBuffer(BestScoreBuffer);
+
+                    BestScoreBuffer = CopyByteBuffer(XORBuffer);
+                    BestScore = Score;
+                }
+            }
+            free(XORBuffer);
+        }
+        Print(BestScoreBuffer, BYTE_BUFFER, AS_STRING);
     }
+
 
     FreeGlobalBase64Lookup();
 }
