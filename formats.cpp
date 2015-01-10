@@ -118,23 +118,13 @@ FreeGlobalBase64Lookup()
 }
 
 uint8 *
-SeekToCharSafe(uint8 *String, uint8 Char, uint8 *MaxSeek)
+SeekToChar(uint8 *String, uint8 Char, size_t MaxSeek)
 {
     uint8 *SeekPtr = String;
-    while(MaxSeek < SeekPtr && *SeekPtr != Char)
+    int Seek = 0;
+    while(Seek < MaxSeek && *SeekPtr != Char)
     {
-        SeekPtr++;
-    }
-
-    return SeekPtr;
-}
-
-uint8 *
-SeekToCharUnsafe(uint8 *String, uint8 Char)
-{
-    uint8 *SeekPtr = String;
-    while(*SeekPtr != Char)
-    {
+        Seek++;
         SeekPtr++;
     }
 
@@ -144,8 +134,13 @@ SeekToCharUnsafe(uint8 *String, uint8 Char)
 size_t
 StringLength(uint8 *String)
 {
-    uint8 *NullBytePointer = SeekToCharUnsafe(String, '\0');
-    size_t Result = NullBytePointer - String;
+    int Result = 0;
+
+    while(*String++)
+    {
+        Result++;
+    }
+
     return Result;
 }
 
@@ -571,6 +566,10 @@ ScoreLetter(uint8 Letter)
     {
         Result = EnglishLetterFrequencies[FrequencyTableIndex];
     }
+    else if(Letter == ' ')
+    {
+        Result = 0.5;
+    }
     return Result;
 }
 
@@ -654,8 +653,6 @@ int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
-    Challenge3();
-#if 0
 
     uint8 *FileBuffer = 0;
     size_t FileContentsLength;
@@ -694,24 +691,24 @@ main(int argc, char *argv[])
 
         // NOTE(yuri): Allocate arrays for strings and copy over strings
         uint8 *CurrentLinePointer = FileBuffer;
-        uint8 *NextLinePointer = CurrentLinePointer;
         for(int CipherTextIndex = 0;
             CipherTextIndex < LinesCount;
             CipherTextIndex++)
         {
-            uint8 *NewLinePointer = CountToCharSafe(CurrentLinePointer, '\n',
+            uint8 *NewLinePointer = SeekToChar(CurrentLinePointer, '\n', FileBufferEnd - CurrentLinePointer);
+            size_t CharCount = NewLinePointer - CurrentLinePointer;
             CipherTexts[CipherTextIndex] = (uint8 *)malloc(sizeof(uint8) * (CharCount + 1));
 
             uint8 CharIndex = 0;
             // NOTE(yuri): Since NextLinePointer starts on the next line, we want to read up to it
-            while(CurrentLinePointer < NextLinePointer - 1)
+            while(CharIndex < CharCount)
             {
                 CipherTexts[CipherTextIndex][CharIndex] = *CurrentLinePointer;
                 CurrentLinePointer++;
                 CharIndex++;
             }
-            CurrentLinePointer = NextLinePointer;
             CipherTexts[CipherTextIndex][CharIndex] = 0;
+            CurrentLinePointer = NewLinePointer + 1;
         }
 
 #if 0
@@ -724,34 +721,30 @@ main(int argc, char *argv[])
 #endif
 
         scored_buffer ScoredBuffer = CreateEmptyScoredBuffer();
-        byte_buffer *CipherText;
 
         for(int LineIndex = 0;
             LineIndex < LinesCount;
             LineIndex++)
         {
             byte_buffer *CandidateBuffer = DecodeHex(CipherTexts[LineIndex]);
-            byte_buffer *XORBuffer = CreateByteBuffer(CandidateBuffer->Size);
 
-            for(int XORChar = 0;
-                XORChar < 256;
-                XORChar++)
+            for(int Char = 0;
+                Char < 900;
+                Char++)
             {
-                for(int ByteBufferIndex = 0;
-                    ByteBufferIndex < CandidateBuffer->Size;
-                    ByteBufferIndex++)
-                {
-                    XORBuffer->Buffer[ByteBufferIndex] =
-                        CandidateBuffer->Buffer[ByteBufferIndex] ^ (uint8)XORChar;
-                }
-                MaxBufferScore(ScoredBuffer, XORBuffer);
+                byte_buffer *XORBuffer = XORBufferSingleChar(CandidateBuffer, (uint8)Char);
+                ScoredBuffer = MaxBufferScore(ScoredBuffer, XORBuffer);
+                FreeByteBuffer(XORBuffer);
             }
-            free(XORBuffer);
+            FreeByteBuffer(CandidateBuffer);
+            free(CipherTexts[LineIndex]);
         }
 
         Print(ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
+        FreeScoreBuffer(ScoredBuffer);
+        free(CipherTexts);
     }
-#endif
+    free(FileBuffer);
 
 
     FreeGlobalBase64Lookup();
