@@ -117,29 +117,35 @@ FreeGlobalBase64Lookup()
     }
 }
 
-size_t
-CountToChar(uint8 *String, uint8 Char, uint8 **ContinuePointer)
+uint8 *
+SeekToCharSafe(uint8 *String, uint8 Char, uint8 *MaxSeek)
 {
-    int Result = 0;
-
-    while(*String != Char && *String != 0)
+    uint8 *SeekPtr = String;
+    while(MaxSeek < SeekPtr && *SeekPtr != Char)
     {
-        Result++;
-        String++;
+        SeekPtr++;
     }
 
-    if(ContinuePointer)
+    return SeekPtr;
+}
+
+uint8 *
+SeekToCharUnsafe(uint8 *String, uint8 Char)
+{
+    uint8 *SeekPtr = String;
+    while(*SeekPtr != Char)
     {
-        *ContinuePointer += Result + 1;
+        SeekPtr++;
     }
 
-    return Result;
+    return SeekPtr;
 }
 
 size_t
 StringLength(uint8 *String)
 {
-    int Result = CountToChar(String, 0, 0);
+    uint8 *NullBytePointer = SeekToCharUnsafe(String, '\0');
+    size_t Result = NullBytePointer - String;
     return Result;
 }
 
@@ -568,10 +574,88 @@ ScoreLetter(uint8 Letter)
     return Result;
 }
 
+real32
+ScoreBuffer(byte_buffer *ByteBuffer)
+{
+    real32 Result = 0;
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < ByteBuffer->Size;
+        ByteBufferIndex++)
+    {
+        Result += ScoreLetter(ByteBuffer->Buffer[ByteBufferIndex]);
+    }
+
+    Result /= ByteBuffer->Size;
+
+    return Result;
+}
+
+struct scored_buffer
+{
+    byte_buffer *ByteBuffer;
+    real32 Score;
+};
+
+scored_buffer
+CreateEmptyScoredBuffer(void)
+{
+    scored_buffer Result = {0};
+    return Result;
+}
+
+void
+FreeScoreBuffer(scored_buffer ScoredBuffer)
+{
+    if(ScoredBuffer.ByteBuffer)
+    {
+        FreeByteBuffer(ScoredBuffer.ByteBuffer);
+    }
+}
+
+scored_buffer
+MaxBufferScore(scored_buffer ScoredBuffer, byte_buffer *ByteBuffer)
+{
+    real32 NewScore = ScoreBuffer(ByteBuffer);
+    if(NewScore > ScoredBuffer.Score)
+    {
+        if(ScoredBuffer.ByteBuffer)
+        {
+            FreeByteBuffer(ScoredBuffer.ByteBuffer);
+        }
+        ScoredBuffer.Score = NewScore;
+        ScoredBuffer.ByteBuffer = CopyByteBuffer(ByteBuffer);
+    }
+    return ScoredBuffer;
+}
+
+int
+CountOccurancesInString(uint8 *String, uint8 Char, size_t Length)
+{
+    int Result = 0;
+    uint8 *CharPointer = String;
+
+    size_t ReadLength = 0;
+
+    while(ReadLength < Length)
+    {
+        if(*CharPointer == Char)
+        {
+            Result++;
+        }
+        CharPointer++;
+        ReadLength++;
+    }
+
+    return Result;
+}
+
 int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
+    Challenge3();
+#if 0
 
     uint8 *FileBuffer = 0;
     size_t FileContentsLength;
@@ -592,21 +676,11 @@ main(int argc, char *argv[])
 
     if (FileBuffer)
     {
+        uint8 *FileBufferEnd = FileBuffer + FileContentsLength;
+        bool32 TrailingNewLine = *(FileBufferEnd - 1) == '\n';
 
         // NOTE(yuri): Calculate the number of lines in the buffer
-        bool32 TrailingNewLine = *(FileBuffer + FileContentsLength - 1) == '\n';
-
-        int LinesCount = 0;
-        uint8 *NewLinePointer = FileBuffer;
-        while(*NewLinePointer != 0)
-        {
-            if(*NewLinePointer == '\n')
-            {
-                LinesCount++;
-            }
-
-            NewLinePointer++;
-        }
+        int LinesCount = CountOccurancesInString(FileBuffer, '\n', FileContentsLength);
         if(!TrailingNewLine)
         {
             LinesCount++;
@@ -625,8 +699,7 @@ main(int argc, char *argv[])
             CipherTextIndex < LinesCount;
             CipherTextIndex++)
         {
-
-            int CharCount = CountToChar(CurrentLinePointer, '\n', &NextLinePointer);
+            uint8 *NewLinePointer = CountToCharSafe(CurrentLinePointer, '\n',
             CipherTexts[CipherTextIndex] = (uint8 *)malloc(sizeof(uint8) * (CharCount + 1));
 
             uint8 CharIndex = 0;
@@ -650,8 +723,7 @@ main(int argc, char *argv[])
         }
 #endif
 
-        real32 BestScore = 0;
-        byte_buffer *BestScoreBuffer = {0};
+        scored_buffer ScoredBuffer = CreateEmptyScoredBuffer();
         byte_buffer *CipherText;
 
         for(int LineIndex = 0;
@@ -665,7 +737,6 @@ main(int argc, char *argv[])
                 XORChar < 256;
                 XORChar++)
             {
-                real32 Score = 0;
                 for(int ByteBufferIndex = 0;
                     ByteBufferIndex < CandidateBuffer->Size;
                     ByteBufferIndex++)
@@ -673,26 +744,14 @@ main(int argc, char *argv[])
                     XORBuffer->Buffer[ByteBufferIndex] =
                         CandidateBuffer->Buffer[ByteBufferIndex] ^ (uint8)XORChar;
                 }
-                for(int ByteBufferIndex = 0;
-                    ByteBufferIndex < CandidateBuffer->Size;
-                    ByteBufferIndex++)
-                {
-                    Score += ScoreLetter(XORBuffer->Buffer[ByteBufferIndex]);
-                }
-                // NOTE(yuri): Normalize string score
-                Score /= XORBuffer->Size;
-                if(Score > BestScore)
-                {
-                    FreeByteBuffer(BestScoreBuffer);
-
-                    BestScoreBuffer = CopyByteBuffer(XORBuffer);
-                    BestScore = Score;
-                }
+                MaxBufferScore(ScoredBuffer, XORBuffer);
             }
             free(XORBuffer);
         }
-        Print(BestScoreBuffer, BYTE_BUFFER, AS_STRING);
+
+        Print(ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
     }
+#endif
 
 
     FreeGlobalBase64Lookup();
@@ -701,48 +760,22 @@ main(int argc, char *argv[])
 void
 Challenge3()
 {
-    real32 BestScore = 0;
-    byte_buffer *BestScoreBuffer = {0};
+    scored_buffer ScoredBuffer = CreateEmptyScoredBuffer();
     byte_buffer *CipherText =
         DecodeHex((uint8 *)"1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
 
-    byte_buffer *XORBuffer = CreateByteBuffer(CipherText->Size);
     for(int Char = 0;
-        Char < 256;
+        Char < 255;
         Char++)
     {
-        for(int ByteBufferIndex = 0;
-            ByteBufferIndex < CipherText->Size;
-            ByteBufferIndex++)
-        {
-            XORBuffer->Buffer[ByteBufferIndex] =
-                CipherText->Buffer[ByteBufferIndex] ^ (uint8)Char;
-        }
-
-        real32 Score = 0;
-        for(int ByteBufferIndex = 0;
-            ByteBufferIndex < CipherText->Size;
-            ByteBufferIndex++)
-        {
-            Score += ScoreLetter(XORBuffer->Buffer[ByteBufferIndex]);
-        }
-
-        // NOTE(yuri): Normalize string score
-        Score /= XORBuffer->Size;
-
-        if(Score > BestScore)
-        {
-            FreeByteBuffer(BestScoreBuffer);
-
-            BestScoreBuffer = CopyByteBuffer(XORBuffer);
-            BestScore = Score;
-        }
+        byte_buffer *XORBuffer = XORBufferSingleChar(CipherText, (uint8)Char);
+        ScoredBuffer = MaxBufferScore(ScoredBuffer, XORBuffer);
+        FreeByteBuffer(XORBuffer);
     }
-    Print(BestScoreBuffer, BYTE_BUFFER, AS_STRING);
+    Print(ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
 
-    FreeByteBuffer(BestScoreBuffer);
+    FreeScoreBuffer(ScoredBuffer);
     FreeByteBuffer(CipherText);
-    FreeByteBuffer(XORBuffer);
     printf("\n");
 }
 
