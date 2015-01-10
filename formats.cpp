@@ -31,6 +31,7 @@ typedef uint16 flag;
 #define BYTE_BUFFER   (1 << 1)
 #define HEX_STRING    (1 << 2)
 #define BASE64_STRING (1 << 3)
+#define STRING        (1 << 4)
 
 // NOTE(yuri): Print Options
 #define AS_STRING     (1 << 1)
@@ -117,16 +118,29 @@ FreeGlobalBase64Lookup()
 }
 
 size_t
-StringLength(uint8 *String)
+CountToChar(uint8 *String, uint8 Char, uint8 **ContinuePointer)
 {
-    int Count = 0;
+    int Result = 0;
 
-    while(*String++)
+    while(*String != Char && *String != 0)
     {
-        Count++;
+        Result++;
+        String++;
     }
 
-    return Count;
+    if(ContinuePointer)
+    {
+        *ContinuePointer += Result + 1;
+    }
+
+    return Result;
+}
+
+size_t
+StringLength(uint8 *String)
+{
+    int Result = CountToChar(String, 0, 0);
+    return Result;
 }
 
 void
@@ -231,9 +245,6 @@ DecodeHex(uint8 *HexString)
         HexByteBuffer[2] = 0;
         int8 Byte = strtol((char *)HexByteBuffer, 0, 16);
         ByteBuffer->Buffer[HexIndex] = Byte;
-        //printf("%d\t%s\t%c\t%c\t%d\t%c\n",
-        //HexIndex, HexByteBuffer, FirstHexChar, SecondHexChar,
-        //Byte, Byte);
     }
 
     return ByteBuffer;
@@ -284,7 +295,24 @@ PrintByteBufferAsDump(byte_buffer *ByteBuffer)
     for(int i = 0; i < ByteBuffer->Size; i++)
     {
         uint8 Val = ByteBuffer->Buffer[i];
-        printf("%c\t0x%02x\t%d\t", Val, Val, Val);
+        switch(Val)
+        {
+            case '\n':
+                printf("\\n");
+                break;
+            case '\r':
+                printf("\\r");
+                break;
+            case '\t':
+                printf("\\t");
+                break;
+            case 0:
+                printf("\\0");
+                break;
+            default:
+                printf("%c", Val);
+        }
+        printf("\t0x%02x\t%d\t", Val, Val);
         PrintBits(&Val, 1);
         printf("\n");
     }
@@ -419,6 +447,22 @@ PrintByteBufferAsBase64(byte_buffer *ByteBuffer)
     free(Base64Buffer);
 }
 
+byte_buffer *
+StringToByteBuffer(uint8 *String)
+{
+    // NOTE(yuri): These byte_buffers will include the trailing NUL
+    byte_buffer *ByteBuffer = CreateByteBuffer(StringLength(String) + 1);
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < ByteBuffer->Size;
+        ByteBufferIndex++)
+    {
+        ByteBuffer->Buffer[ByteBufferIndex] = *(String + ByteBufferIndex);
+    }
+
+    return ByteBuffer;
+}
+
 
 void
 Print(void *Value, flag Type, flag PrintOptions)
@@ -435,6 +479,10 @@ Print(void *Value, flag Type, flag PrintOptions)
     else if(Type & BASE64_STRING)
     {
         ByteBuffer = DecodeBase64((uint8 *)Value);
+    }
+    else if(Type & STRING)
+    {
+        ByteBuffer = StringToByteBuffer((uint8 *)Value);
     }
 
     if(PrintOptions & AS_STRING)
@@ -536,9 +584,54 @@ main(int argc, char *argv[])
 
     if (FileBuffer)
     {
-        bool32 TrailingNewLine = *(FileBuffer + FileContentsLength - 1) == '\n';
-    }
 
+        // NOTE(yuri): Calculate the number of lines in the buffer
+        bool32 TrailingNewLine = *(FileBuffer + FileContentsLength - 1) == '\n';
+
+        int LinesCount = 0;
+        uint8 *NewLinePointer = FileBuffer;
+        while(*NewLinePointer != 0)
+        {
+            if(*NewLinePointer == '\n')
+            {
+                LinesCount++;
+            }
+
+            NewLinePointer++;
+        }
+        if(!TrailingNewLine)
+        {
+            LinesCount++;
+        }
+
+        // NOTE(yuri): Allocate an appropriate 2D array
+        uint8 **CipherTexts = (uint8 **)malloc(sizeof(uint8 *) * LinesCount);
+        if(CipherTexts == 0) printf("Allocating CipherTexts failed\n");
+
+        printf("Allocated CipherTexts of size %d\n", LinesCount);
+
+        // NOTE(yuri): Allocate arrays for strings and copy over strings
+        uint8 *CurrentLinePointer = FileBuffer;
+        uint8 *NextLinePointer = CurrentLinePointer;
+        for(int CipherTextIndex = 0;
+            CipherTextIndex < LinesCount;
+            CipherTextIndex++)
+        {
+            int CharCount = CountToChar(CurrentLinePointer, '\n', &NextLinePointer);
+            CipherTexts[CipherTextIndex] = (uint8 *)malloc(sizeof(uint8) * (CharCount + 1));
+
+            uint8 CharIndex = 0;
+            // NOTE(yuri): Since NextLinePointer starts on the next line, we want to read up to it
+            while(CurrentLinePointer < NextLinePointer - 1)
+            {
+                CipherTexts[CipherTextIndex][CharIndex] = *CurrentLinePointer;
+                CurrentLinePointer++;
+                CharIndex++;
+            }
+            CurrentLinePointer = NextLinePointer;
+            CipherTexts[CipherTextIndex][CharIndex] = 0;
+        }
+    }
 
     FreeGlobalBase64Lookup();
 }
