@@ -458,10 +458,16 @@ PrintByteBufferAsBase64(byte_buffer *ByteBuffer)
 }
 
 byte_buffer *
-StringToByteBuffer(uint8 *String)
+StringToByteBuffer(uint8 *String, bool32 IncludeNUL)
 {
+    size_t Length = StringLength(String);
+
     // NOTE(yuri): These byte_buffers will include the trailing NUL
-    byte_buffer *ByteBuffer = CreateByteBuffer(StringLength(String) + 1);
+    if(IncludeNUL)
+    {
+        Length += 1;
+    }
+    byte_buffer *ByteBuffer = CreateByteBuffer(Length);
 
     for(int ByteBufferIndex = 0;
         ByteBufferIndex < ByteBuffer->Size;
@@ -492,7 +498,7 @@ Print(void *Value, flag Type, flag PrintOptions)
     }
     else if(Type & STRING)
     {
-        ByteBuffer = StringToByteBuffer((uint8 *)Value);
+        ByteBuffer = StringToByteBuffer((uint8 *)Value, 1);
     }
 
     if(PrintOptions & AS_STRING)
@@ -654,8 +660,26 @@ int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
-    Challenge4();
+    uint8 *PlainText = (uint8 *)"Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal";
+    uint8 *Key = (uint8 *)"ICE";
+    byte_buffer *ByteBuffer = StringToByteBuffer(PlainText, 0);
 
+    byte_buffer *XORBuffer = CreateByteBuffer(StringLength(PlainText));
+    size_t KeyLength = StringLength(Key);
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < ByteBuffer->Size;
+        ByteBufferIndex++)
+    {
+        uint8 XORChar = Key[ByteBufferIndex % KeyLength];
+        XORBuffer->Buffer[ByteBufferIndex] = ByteBuffer->Buffer[ByteBufferIndex] ^ XORChar;
+    }
+    Print(XORBuffer, BYTE_BUFFER, AS_HEX);
+
+    if(StringsAreEqual((uint8 *)"0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f", EncodeHex(XORBuffer)))
+    {
+        printf("Equal!\n");
+    }
     FreeGlobalBase64Lookup();
 }
 
