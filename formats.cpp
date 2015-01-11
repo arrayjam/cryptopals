@@ -43,8 +43,15 @@ void Challenge1();
 void Challenge2();
 void Challenge3();
 void Challenge4();
+void Challenge5();
 
 void Print(void *Value, flag Type, flag PrintOptions);
+
+struct byte_buffer
+{
+    uint8 *Buffer;
+    size_t Size;
+};
 
 struct base64_lookup {
     uint8 *LookupTable;
@@ -183,12 +190,6 @@ Print32Bits(uint32 *Value, size_t Size)
     }
     printf("\n");
 }
-
-struct byte_buffer
-{
-    uint8 *Buffer;
-    size_t Size;
-};
 
 byte_buffer *
 CreateByteBuffer(size_t ByteBufferSize)
@@ -657,9 +658,46 @@ CountOccurancesInString(uint8 *String, uint8 Char, size_t Length)
 }
 
 int
+HammingWeight(uint8 Number)
+{
+    int Result = __builtin_popcount(Number);
+    return Result;
+}
+
+int
+HammingDistance(byte_buffer *TestA, byte_buffer *TestB)
+{
+    int Result = 0;
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < TestA->Size;
+        ByteBufferIndex++)
+    {
+        Result += HammingWeight(TestA->Buffer[ByteBufferIndex] ^
+                                TestB->Buffer[ByteBufferIndex]);
+    }
+
+    return Result;
+}
+
+int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
+    byte_buffer *TestA = StringToByteBuffer((uint8 *)"this is a test", 0);
+    byte_buffer *TestB = StringToByteBuffer((uint8 *)"wokka wokka!!!", 0);
+
+    printf("Total Distance: %d\n", HammingDistance(TestA, TestB));
+    uint8 Number = 7;
+    printf("Popcount of %d: %d\n", Number, HammingWeight(Number));
+    FreeByteBuffer(TestA);
+    FreeByteBuffer(TestB);
+    FreeGlobalBase64Lookup();
+}
+
+void
+Challenge5()
+{
     uint8 *PlainText = (uint8 *)"Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal";
     uint8 *Key = (uint8 *)"ICE";
     byte_buffer *ByteBuffer = StringToByteBuffer(PlainText, 0);
@@ -676,11 +714,15 @@ main(int argc, char *argv[])
     }
     Print(XORBuffer, BYTE_BUFFER, AS_HEX);
 
-    if(StringsAreEqual((uint8 *)"0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f", EncodeHex(XORBuffer)))
+    uint8 *Encoded = EncodeHex(XORBuffer);
+    if(StringsAreEqual((uint8 *)"0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f", Encoded))
     {
         printf("Equal!\n");
     }
-    FreeGlobalBase64Lookup();
+    free(Encoded);
+
+    FreeByteBuffer(ByteBuffer);
+    FreeByteBuffer(XORBuffer);
 }
 
 void
