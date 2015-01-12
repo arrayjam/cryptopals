@@ -53,7 +53,8 @@ struct byte_buffer
     size_t Size;
 };
 
-struct base64_lookup {
+struct base64_lookup
+{
     uint8 *LookupTable;
     uint8 PaddingByteIndex;
     uint8 *ReverseLookupTable;
@@ -636,6 +637,43 @@ MaxBufferScore(scored_buffer ScoredBuffer, byte_buffer *ByteBuffer)
     return ScoredBuffer;
 }
 
+struct file_buffer
+{
+    uint8 *Buffer;
+    size_t Size;
+};
+
+file_buffer
+OpenFileBuffer(uint8 *Filename)
+{
+    file_buffer FileBuffer = {0};
+    FILE *File = fopen((char *)Filename, "r");
+
+    if(File)
+    {
+        fseek(File, 0, SEEK_END);
+        FileBuffer.Size = ftell(File);
+        fseek(File, 0, SEEK_SET);
+        FileBuffer.Buffer = (uint8 *)malloc(sizeof(uint8) * FileBuffer.Size);
+        if(FileBuffer.Buffer)
+        {
+            fread(FileBuffer.Buffer, 1, FileBuffer.Size, File);
+        }
+        fclose (File);
+    }
+
+    return FileBuffer;
+}
+
+void
+FreeFileBuffer(file_buffer FileBuffer)
+{
+    if(FileBuffer.Buffer)
+    {
+        free(FileBuffer.Buffer);
+    }
+}
+
 int
 CountOccurancesInString(uint8 *String, uint8 Char, size_t Length)
 {
@@ -655,6 +693,75 @@ CountOccurancesInString(uint8 *String, uint8 Char, size_t Length)
     }
 
     return Result;
+}
+
+struct string_buffers
+{
+    uint8 **String;
+    size_t Size;
+};
+
+string_buffers
+ReadFileIntoStringBuffers(file_buffer FileBuffer)
+{
+    string_buffers StringBuffers = {0};
+
+    uint8 *FileBufferEnd = FileBuffer.Buffer + FileBuffer.Size;
+    bool32 TrailingNewLine = *(FileBufferEnd - 1) == '\n';
+
+    StringBuffers.Size = CountOccurancesInString(FileBuffer.Buffer, '\n', FileBuffer.Size);
+    if(!TrailingNewLine)
+    {
+        StringBuffers.Size++;
+    }
+
+    // NOTE(yuri): Allocate an appropriate 2D array
+    StringBuffers.String = (uint8 **)malloc(sizeof(uint8 *) * StringBuffers.Size);
+    if(StringBuffers.String == 0) printf("Allocating StringBuffers.String failed\n");
+
+    // printf("Allocated StringBuffers.String of size %d\n", StringBuffers.Size);
+
+    // NOTE(yuri): Allocate arrays for strings and copy over strings
+    uint8 *CurrentLinePointer = FileBuffer.Buffer;
+    for(int StringIndex = 0;
+        StringIndex < StringBuffers.Size;
+        StringIndex++)
+    {
+        uint8 *NewLinePointer = SeekToChar(CurrentLinePointer, '\n', FileBufferEnd - CurrentLinePointer);
+        size_t CharCount = NewLinePointer - CurrentLinePointer;
+        StringBuffers.String[StringIndex] = (uint8 *)malloc(sizeof(uint8) * (CharCount + 1));
+
+        uint8 CharIndex = 0;
+        // NOTE(yuri): Since NextLinePointer starts on the next line, we want to read up to it
+        while(CharIndex < CharCount)
+        {
+            StringBuffers.String[StringIndex][CharIndex] = *CurrentLinePointer;
+            CurrentLinePointer++;
+            CharIndex++;
+        }
+        StringBuffers.String[StringIndex][CharIndex] = 0;
+        CurrentLinePointer = NewLinePointer + 1;
+    }
+
+    return StringBuffers;
+}
+
+void
+FreeStringBuffers(string_buffers StringBuffers)
+{
+    if(StringBuffers.String)
+    {
+        for(int StringIndex = 0;
+            StringIndex < StringBuffers.Size;
+            StringIndex++)
+        {
+            if(StringBuffers.String[StringIndex])
+            {
+                free(StringBuffers.String[StringIndex]);
+            }
+        }
+        free(StringBuffers.String);
+    }
 }
 
 int
@@ -688,8 +795,6 @@ main(int argc, char *argv[])
     byte_buffer *TestB = StringToByteBuffer((uint8 *)"wokka wokka!!!", 0);
 
     printf("Total Distance: %d\n", HammingDistance(TestA, TestB));
-    uint8 Number = 7;
-    printf("Popcount of %d: %d\n", Number, HammingWeight(Number));
     FreeByteBuffer(TestA);
     FreeByteBuffer(TestB);
     FreeGlobalBase64Lookup();
@@ -728,79 +833,28 @@ Challenge5()
 void
 Challenge4()
 {
-    uint8 *FileBuffer = 0;
-    size_t FileContentsLength;
-    FILE *File = fopen("data/4.txt", "r");
+    uint8 *Filename = (uint8 *)"data/4.txt";
+    file_buffer FileBuffer = OpenFileBuffer(Filename);
 
-    if(File)
+    if(FileBuffer.Buffer)
     {
-        fseek(File, 0, SEEK_END);
-        FileContentsLength = ftell(File);
-        fseek(File, 0, SEEK_SET);
-        FileBuffer = (uint8 *)malloc(sizeof(uint8) * FileContentsLength);
-        if(FileBuffer)
-        {
-            fread(FileBuffer, 1, FileContentsLength, File);
-        }
-        fclose (File);
-    }
-
-    if (FileBuffer)
-    {
-        uint8 *FileBufferEnd = FileBuffer + FileContentsLength;
-        bool32 TrailingNewLine = *(FileBufferEnd - 1) == '\n';
-
-        // NOTE(yuri): Calculate the number of lines in the buffer
-        int LinesCount = CountOccurancesInString(FileBuffer, '\n', FileContentsLength);
-        if(!TrailingNewLine)
-        {
-            LinesCount++;
-        }
-
-        // NOTE(yuri): Allocate an appropriate 2D array
-        uint8 **CipherTexts = (uint8 **)malloc(sizeof(uint8 *) * LinesCount);
-        if(CipherTexts == 0) printf("Allocating CipherTexts failed\n");
-
-        // printf("Allocated CipherTexts of size %d\n", LinesCount);
-
-        // NOTE(yuri): Allocate arrays for strings and copy over strings
-        uint8 *CurrentLinePointer = FileBuffer;
-        for(int CipherTextIndex = 0;
-            CipherTextIndex < LinesCount;
-            CipherTextIndex++)
-        {
-            uint8 *NewLinePointer = SeekToChar(CurrentLinePointer, '\n', FileBufferEnd - CurrentLinePointer);
-            size_t CharCount = NewLinePointer - CurrentLinePointer;
-            CipherTexts[CipherTextIndex] = (uint8 *)malloc(sizeof(uint8) * (CharCount + 1));
-
-            uint8 CharIndex = 0;
-            // NOTE(yuri): Since NextLinePointer starts on the next line, we want to read up to it
-            while(CharIndex < CharCount)
-            {
-                CipherTexts[CipherTextIndex][CharIndex] = *CurrentLinePointer;
-                CurrentLinePointer++;
-                CharIndex++;
-            }
-            CipherTexts[CipherTextIndex][CharIndex] = 0;
-            CurrentLinePointer = NewLinePointer + 1;
-        }
-
+        string_buffers StringBuffers = ReadFileIntoStringBuffers(FileBuffer);
 #if 0
         for(int i = 0;
-            i < LinesCount;
+            i < StringBuffers.Size;
             i++)
         {
-            Print(CipherTexts[i], HEX_STRING, AS_DUMP);
+            Print(StringBuffers.String[i], HEX_STRING, AS_DUMP);
         }
 #endif
 
         scored_buffer ScoredBuffer = CreateEmptyScoredBuffer();
 
-        for(int LineIndex = 0;
-            LineIndex < LinesCount;
-            LineIndex++)
+        for(int StringIndex = 0;
+            StringIndex < StringBuffers.Size;
+            StringIndex++)
         {
-            byte_buffer *CandidateBuffer = DecodeHex(CipherTexts[LineIndex]);
+            byte_buffer *CandidateBuffer = DecodeHex(StringBuffers.String[StringIndex]);
 
             for(int Char = 0;
                 Char < 900;
@@ -811,14 +865,13 @@ Challenge4()
                 FreeByteBuffer(XORBuffer);
             }
             FreeByteBuffer(CandidateBuffer);
-            free(CipherTexts[LineIndex]);
         }
 
         Print(ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
         FreeScoreBuffer(ScoredBuffer);
-        free(CipherTexts);
+        FreeStringBuffers(StringBuffers);
     }
-    free(FileBuffer);
+    FreeFileBuffer(FileBuffer);
 }
 
 void
