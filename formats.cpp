@@ -28,16 +28,17 @@ typedef double real64;
 typedef uint16 flag;
 
 // NOTE(yuri): Print Types
-#define BYTE_BUFFER   (1 << 1)
-#define HEX_STRING    (1 << 2)
-#define BASE64_STRING (1 << 3)
-#define STRING        (1 << 4)
+#define BYTE_BUFFER    (1 << 1)
+#define HEX_STRING     (1 << 2)
+#define BASE64_STRING  (1 << 3)
+#define STRING         (1 << 4)
 
 // NOTE(yuri): Print Options
-#define AS_STRING     (1 << 1)
-#define AS_HEX        (1 << 2)
-#define AS_DUMP       (1 << 3)
-#define AS_BASE64     (1 << 4)
+#define AS_STRING      (1 << 1)
+#define AS_NICE_STRING (1 << 2)
+#define AS_HEX         (1 << 3)
+#define AS_DUMP        (1 << 4)
+#define AS_BASE64      (1 << 5)
 
 void Challenge1();
 void Challenge2();
@@ -154,6 +155,35 @@ StringLength(uint8 *String)
 }
 
 void
+PrintNiceChar(uint8 Char)
+{
+    if(Char == '\n')
+    {
+        printf("\\n");
+    }
+    else if(Char == '\r')
+    {
+        printf("\\r");
+    }
+    else if(Char == '\t')
+    {
+        printf("\\t");
+    }
+    else if(Char == 0)
+    {
+        printf("\\0");
+    }
+    else if(!isprint(Char))
+    {
+        printf(".");
+    }
+    else
+    {
+        printf("%c", Char);
+    }
+}
+
+void
 PrintBits(uint8 *Value, size_t Size)
 {
     uint8 Byte;
@@ -255,6 +285,16 @@ DecodeHex(uint8 *HexString)
 }
 
 void
+PrintByteBufferAsNiceString(byte_buffer *ByteBuffer)
+{
+    for(int i = 0; i < ByteBuffer->Size; i++)
+    {
+        PrintNiceChar(ByteBuffer->Buffer[i]);
+    }
+    printf("\n");
+}
+
+void
 PrintByteBufferAsString(byte_buffer *ByteBuffer)
 {
     for(int i = 0; i < ByteBuffer->Size; i++)
@@ -299,30 +339,7 @@ PrintByteBufferAsDump(byte_buffer *ByteBuffer)
     for(int i = 0; i < ByteBuffer->Size; i++)
     {
         uint8 Val = ByteBuffer->Buffer[i];
-        if(Val == '\n')
-        {
-            printf("\\n");
-        }
-        else if(Val == '\r')
-        {
-            printf("\\r");
-        }
-        else if(Val == '\t')
-        {
-            printf("\\t");
-        }
-        else if(Val == 0)
-        {
-            printf("\\0");
-        }
-        else if(!isprint(Val))
-        {
-            printf(".");
-        }
-        else
-        {
-            printf("%c", Val);
-        }
+        PrintNiceChar(Val);
         printf("\t0x%02x\t%d\t", Val, Val);
         PrintBits(&Val, 1);
         printf("\n");
@@ -506,6 +523,11 @@ Print(void *Value, flag Type, flag PrintOptions)
     if(PrintOptions & AS_STRING)
     {
         PrintByteBufferAsString(ByteBuffer);
+    }
+
+    if(PrintOptions & AS_NICE_STRING)
+    {
+        PrintByteBufferAsNiceString(ByteBuffer);
     }
 
     if(PrintOptions & AS_HEX)
@@ -787,16 +809,52 @@ HammingDistance(byte_buffer *TestA, byte_buffer *TestB)
     return Result;
 }
 
+byte_buffer *
+ReadFileAsWrappedBase64String(file_buffer FileBuffer)
+{
+    int NewlineCount = CountOccurancesInString(FileBuffer.Buffer, '\n', FileBuffer.Size);
+    printf("Count: %d, Size: %zu\n", NewlineCount, FileBuffer.Size);
+    size_t Base64StringSize = FileBuffer.Size - NewlineCount;
+    uint8 *Base64String = (uint8 *)malloc(sizeof(uint8) * Base64StringSize + 1);
+
+    int Base64Index = 0;
+    for(int FileBufferIndex = 0;
+        FileBufferIndex < FileBuffer.Size;
+        FileBufferIndex++)
+    {
+        uint8 Char = FileBuffer.Buffer[FileBufferIndex];
+        if(Char != '\n')
+        {
+            Base64String[Base64Index] = Char;
+            Base64Index++;
+        }
+    }
+
+    free(Base64String);
+
+    byte_buffer *ByteBuffer = DecodeBase64(Base64String);
+    return ByteBuffer;
+}
+
 int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
+#if 0
     byte_buffer *TestA = StringToByteBuffer((uint8 *)"this is a test", 0);
     byte_buffer *TestB = StringToByteBuffer((uint8 *)"wokka wokka!!!", 0);
 
     printf("Total Distance: %d\n", HammingDistance(TestA, TestB));
     FreeByteBuffer(TestA);
     FreeByteBuffer(TestB);
+#endif
+
+    file_buffer FileBuffer = OpenFileBuffer((uint8 *)"data/6.txt");
+    byte_buffer *ByteBuffer = ReadFileAsWrappedBase64String(FileBuffer);
+    Print(ByteBuffer, BYTE_BUFFER, AS_DUMP);
+    FreeFileBuffer(FileBuffer);
+
+
     FreeGlobalBase64Lookup();
 }
 
@@ -839,15 +897,6 @@ Challenge4()
     if(FileBuffer.Buffer)
     {
         string_buffers StringBuffers = ReadFileIntoStringBuffers(FileBuffer);
-#if 0
-        for(int i = 0;
-            i < StringBuffers.Size;
-            i++)
-        {
-            Print(StringBuffers.String[i], HEX_STRING, AS_DUMP);
-        }
-#endif
-
         scored_buffer ScoredBuffer = CreateEmptyScoredBuffer();
 
         for(int StringIndex = 0;
