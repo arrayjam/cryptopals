@@ -45,6 +45,7 @@ void Challenge2();
 void Challenge3();
 void Challenge4();
 void Challenge5();
+void Challenge6();
 
 void Print(void *Value, flag Type, flag PrintOptions);
 
@@ -403,7 +404,11 @@ DecodeBase64(uint8 *Base64String)
             TriOctetIndex < 3;
             TriOctetIndex++)
         {
-            ByteBuffer.Buffer[ByteBufferIndex++] = (QuadSextet >> ((2 - TriOctetIndex) * 8)) & ByteMask;
+            if(ByteBufferIndex < ByteBufferSize)
+            {
+                ByteBuffer.Buffer[ByteBufferIndex++] =
+                    (QuadSextet >> ((2 - TriOctetIndex) * 8)) & ByteMask;
+            }
         }
     }
 
@@ -620,6 +625,7 @@ struct scored_buffer
 {
     byte_buffer ByteBuffer;
     real32 Score;
+    byte_buffer Key;
 };
 
 scored_buffer
@@ -633,17 +639,20 @@ void
 FreeScoreBuffer(scored_buffer ScoredBuffer)
 {
     FreeByteBuffer(ScoredBuffer.ByteBuffer);
+    FreeByteBuffer(ScoredBuffer.Key);
 }
 
 scored_buffer
-MaxBufferScore(scored_buffer ScoredBuffer, byte_buffer ByteBuffer)
+MaxBufferScore(scored_buffer ScoredBuffer, byte_buffer ByteBuffer, byte_buffer Key)
 {
     real32 NewScore = ScoreBuffer(ByteBuffer);
     if(NewScore > ScoredBuffer.Score)
     {
         FreeByteBuffer(ScoredBuffer.ByteBuffer);
+        FreeByteBuffer(ScoredBuffer.Key);
         ScoredBuffer.Score = NewScore;
         ScoredBuffer.ByteBuffer = CopyByteBuffer(ByteBuffer);
+        ScoredBuffer.Key = CopyByteBuffer(Key);
     }
     return ScoredBuffer;
 }
@@ -818,22 +827,36 @@ ReadFileAsWrappedBase64String(file_buffer FileBuffer)
             Base64Index++;
         }
     }
-
-    free(Base64String);
+    Base64String[Base64Index] = 0;
 
     byte_buffer ByteBuffer = DecodeBase64(Base64String);
+    free(Base64String);
+
     return ByteBuffer;
+}
+
+scored_buffer
+BreakSingleCharacterXOR(byte_buffer ByteBuffer, scored_buffer ScoredBuffer)
+{
+    for(int Char = 0;
+        Char < 256;
+        Char++)
+    {
+        byte_buffer Key = CreateByteBuffer(sizeof(uint8));
+        Key.Buffer[0] = (uint8)Char;
+        byte_buffer XORBuffer = XORBufferSingleChar(ByteBuffer, Key.Buffer[0]);
+        ScoredBuffer = MaxBufferScore(ScoredBuffer, XORBuffer, Key);
+        FreeByteBuffer(Key);
+        FreeByteBuffer(XORBuffer);
+    }
+
+    return ScoredBuffer;
 }
 
 int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
-    Challenge1();
-    Challenge2();
-    Challenge3();
-    Challenge4();
-    Challenge5();
 #if 0
     byte_buffer TestA = StringToByteBuffer((uint8 *)"this is a test", 0);
     byte_buffer TestB = StringToByteBuffer((uint8 *)"wokka wokka!!!", 0);
@@ -841,28 +864,108 @@ main(int argc, char *argv[])
     printf("Total Distance: %d\n", HammingDistance(TestA, TestB));
     FreeByteBuffer(TestA);
     FreeByteBuffer(TestB);
+#endif
 
+    // Challenge1();
+    // Challenge2();
+    // Challenge3();
+    // Challenge4();
+    // Challenge5();
+    Challenge6();
+    FreeGlobalBase64Lookup();
+}
+
+void
+Challenge6()
+{
     file_buffer FileBuffer = OpenFileBuffer((uint8 *)"data/6.txt");
     byte_buffer ByteBuffer = ReadFileAsWrappedBase64String(FileBuffer);
     FreeFileBuffer(FileBuffer);
-    Print(&ByteBuffer, BYTE_BUFFER, AS_DUMP);
 
-    int KeySize = 2;
+    real32 SmallestEditDistance = 1000;
+    int KeySizeGuess = 0;
     for(int KeySize = 2;
         KeySize < 40;
         KeySize++)
     {
-        byte_buffer KeySizeBuffer = CreateByteBuffer(KeySize);
-        // ByteBuffer
+        byte_buffer KeySizeBufferA = CreateByteBuffer(KeySize);
+        byte_buffer KeySizeBufferB = CreateByteBuffer(KeySize);
+        byte_buffer KeySizeBufferC = CreateByteBuffer(KeySize);
+        byte_buffer KeySizeBufferD = CreateByteBuffer(KeySize);
+        for(int KeySizeIndex = 0;
+            KeySizeIndex < KeySize;
+            KeySizeIndex++)
+        {
+            uint8 CharA = ByteBuffer.Buffer[KeySizeIndex];
+            KeySizeBufferA.Buffer[KeySizeIndex] = CharA ? CharA : 0;
 
+            uint8 CharB = ByteBuffer.Buffer[KeySize + KeySizeIndex];
+            KeySizeBufferB.Buffer[KeySizeIndex] = CharB ? CharB : 0;
 
+            uint8 CharC = ByteBuffer.Buffer[KeySize*2 + KeySizeIndex];
+            KeySizeBufferC.Buffer[KeySizeIndex] = CharC ? CharC : 0;
+
+            uint8 CharD = ByteBuffer.Buffer[KeySize*3 + KeySizeIndex];
+            KeySizeBufferD.Buffer[KeySizeIndex] = CharD ? CharD : 0;
+        }
+        real32 EditDistance = (((real32)HammingDistance(KeySizeBufferA, KeySizeBufferB) +
+                                (real32)HammingDistance(KeySizeBufferB, KeySizeBufferC) +
+                                (real32)HammingDistance(KeySizeBufferC, KeySizeBufferD) +
+                                (real32)HammingDistance(KeySizeBufferA, KeySizeBufferC) +
+                                (real32)HammingDistance(KeySizeBufferA, KeySizeBufferD) +
+                                (real32)HammingDistance(KeySizeBufferB, KeySizeBufferD))
+                               / 6) / KeySize;
+
+        FreeByteBuffer(KeySizeBufferA);
+        FreeByteBuffer(KeySizeBufferB);
+        FreeByteBuffer(KeySizeBufferC);
+        FreeByteBuffer(KeySizeBufferD);
+
+        if(EditDistance < SmallestEditDistance)
+        {
+            SmallestEditDistance = EditDistance;
+            KeySizeGuess = KeySize;
+        }
     }
+    printf("Smallest edit distance is %f from keysize %d\n", SmallestEditDistance, KeySizeGuess);
 
+    int PaddedSize = ByteBuffer.Size + (KeySizeGuess - (ByteBuffer.Size % KeySizeGuess));
+    int TransposedSize = PaddedSize / KeySizeGuess;
+    printf("PaddedSize: %d, TransposedSize: %d\n", PaddedSize, TransposedSize);
+    byte_buffer KeyByteBuffer = CreateByteBuffer(KeySizeGuess);
+
+    for(int KeySizeIndex = 0;
+        KeySizeIndex < KeySizeGuess;
+        KeySizeIndex++)
+    {
+        byte_buffer SingleCharXORBuffer = CreateByteBuffer(TransposedSize);
+
+        for(int TransposedBufferIndex = 0;
+            TransposedBufferIndex < TransposedSize;
+            TransposedBufferIndex++)
+        {
+            int ByteBufferIndex = (TransposedBufferIndex * KeySizeGuess) + KeySizeIndex;
+            uint8 Char = ByteBufferIndex < ByteBuffer.Size ? ByteBuffer.Buffer[ByteBufferIndex] : 0;
+            SingleCharXORBuffer.Buffer[TransposedBufferIndex] = Char;
+        }
+
+        scored_buffer ScoredBuffer = BreakSingleCharacterXOR(SingleCharXORBuffer, CreateEmptyScoredBuffer());
+        KeyByteBuffer.Buffer[KeySizeIndex] = ScoredBuffer.Key.Buffer[0];
+        FreeScoreBuffer(ScoredBuffer);
+
+        FreeByteBuffer(SingleCharXORBuffer);
+    }
+    Print(&KeyByteBuffer, BYTE_BUFFER, AS_NICE_STRING);
+
+    // Print(&ByteBuffer, BYTE_BUFFER, AS_DUMP);
+
+    FreeByteBuffer(KeyByteBuffer);
     FreeByteBuffer(ByteBuffer);
-#endif
 
 
-    FreeGlobalBase64Lookup();
+
+
+
 }
 
 void
@@ -910,17 +1013,9 @@ Challenge4()
             StringIndex < StringBuffers.Size;
             StringIndex++)
         {
-            byte_buffer CandidateBuffer = DecodeHex(StringBuffers.String[StringIndex]);
-
-            for(int Char = 0;
-                Char < 900;
-                Char++)
-            {
-                byte_buffer XORBuffer = XORBufferSingleChar(CandidateBuffer, (uint8)Char);
-                ScoredBuffer = MaxBufferScore(ScoredBuffer, XORBuffer);
-                FreeByteBuffer(XORBuffer);
-            }
-            FreeByteBuffer(CandidateBuffer);
+            byte_buffer ByteBuffer = DecodeHex(StringBuffers.String[StringIndex]);
+            ScoredBuffer = BreakSingleCharacterXOR(ByteBuffer, ScoredBuffer);
+            FreeByteBuffer(ByteBuffer);
         }
 
         Print(&ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
@@ -933,18 +1028,10 @@ Challenge4()
 void
 Challenge3()
 {
-    scored_buffer ScoredBuffer = CreateEmptyScoredBuffer();
     byte_buffer CipherText =
         DecodeHex((uint8 *)"1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
 
-    for(int Char = 0;
-        Char < 255;
-        Char++)
-    {
-        byte_buffer XORBuffer = XORBufferSingleChar(CipherText, (uint8)Char);
-        ScoredBuffer = MaxBufferScore(ScoredBuffer, XORBuffer);
-        FreeByteBuffer(XORBuffer);
-    }
+    scored_buffer ScoredBuffer = BreakSingleCharacterXOR(CipherText, CreateEmptyScoredBuffer());
     Print(&ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
 
     FreeScoreBuffer(ScoredBuffer);
