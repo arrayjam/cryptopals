@@ -222,55 +222,50 @@ Print32Bits(uint32 *Value, size_t Size)
     printf("\n");
 }
 
-byte_buffer *
+byte_buffer
 CreateByteBuffer(size_t ByteBufferSize)
 {
-    byte_buffer *ByteBuffer = (byte_buffer *)malloc(sizeof(byte_buffer));
-    if(!ByteBuffer) printf("Failed to allocate ByteBuffer in CreateByteBuffer\n");
+    byte_buffer ByteBuffer = {0};
 
-    ByteBuffer->Size = ByteBufferSize;
-    ByteBuffer->Buffer = (uint8 *)malloc(sizeof(uint8) * ByteBuffer->Size);
-    if(!ByteBuffer->Buffer) printf("Failed to allocate Buffer in ByteBuffer in CreateByteBuffer\n");
+    ByteBuffer.Size = ByteBufferSize;
+    ByteBuffer.Buffer = (uint8 *)malloc(sizeof(uint8) * ByteBuffer.Size);
+    if(!ByteBuffer.Buffer) printf("Failed to allocate Buffer in ByteBuffer in CreateByteBuffer\n");
 
     return ByteBuffer;
 }
 
 void
-FreeByteBuffer(byte_buffer *ByteBuffer)
+FreeByteBuffer(byte_buffer ByteBuffer)
 {
-    if(ByteBuffer)
+    if(ByteBuffer.Buffer)
     {
-        if(ByteBuffer->Buffer)
-        {
-            free(ByteBuffer->Buffer);
-        }
-        free(ByteBuffer);
+        free(ByteBuffer.Buffer);
     }
 }
 
-byte_buffer *
-CopyByteBuffer(byte_buffer *ByteBuffer)
+byte_buffer
+CopyByteBuffer(byte_buffer ByteBuffer)
 {
-    byte_buffer *Result = CreateByteBuffer(ByteBuffer->Size);
+    byte_buffer Result = CreateByteBuffer(ByteBuffer.Size);
 
     for(int ByteBufferIndex = 0;
-        ByteBufferIndex < ByteBuffer->Size;
+        ByteBufferIndex < ByteBuffer.Size;
         ByteBufferIndex++)
     {
-        Result->Buffer[ByteBufferIndex] = ByteBuffer->Buffer[ByteBufferIndex];
+        Result.Buffer[ByteBufferIndex] = ByteBuffer.Buffer[ByteBufferIndex];
     }
 
     return Result;
 }
 
-byte_buffer *
+byte_buffer
 DecodeHex(uint8 *HexString)
 {
-    byte_buffer *ByteBuffer = CreateByteBuffer(StringLength(HexString) / 2);
+    byte_buffer ByteBuffer = CreateByteBuffer(StringLength(HexString) / 2);
 
     int8 FirstHexChar, SecondHexChar;
     int8 HexByteBuffer[3];
-    for(int HexIndex = 0; HexIndex < ByteBuffer->Size; HexIndex++)
+    for(int HexIndex = 0; HexIndex < ByteBuffer.Size; HexIndex++)
     {
         FirstHexChar = HexString[HexIndex*2];
         SecondHexChar = HexString[(HexIndex*2)+1];
@@ -278,43 +273,43 @@ DecodeHex(uint8 *HexString)
         HexByteBuffer[1] = SecondHexChar;
         HexByteBuffer[2] = 0;
         int8 Byte = strtol((char *)HexByteBuffer, 0, 16);
-        ByteBuffer->Buffer[HexIndex] = Byte;
+        ByteBuffer.Buffer[HexIndex] = Byte;
     }
 
     return ByteBuffer;
 }
 
 void
-PrintByteBufferAsNiceString(byte_buffer *ByteBuffer)
+PrintByteBufferAsNiceString(byte_buffer ByteBuffer)
 {
-    for(int i = 0; i < ByteBuffer->Size; i++)
+    for(int i = 0; i < ByteBuffer.Size; i++)
     {
-        PrintNiceChar(ByteBuffer->Buffer[i]);
+        PrintNiceChar(ByteBuffer.Buffer[i]);
     }
     printf("\n");
 }
 
 void
-PrintByteBufferAsString(byte_buffer *ByteBuffer)
+PrintByteBufferAsString(byte_buffer ByteBuffer)
 {
-    for(int i = 0; i < ByteBuffer->Size; i++)
+    for(int i = 0; i < ByteBuffer.Size; i++)
     {
-        printf("%c", ByteBuffer->Buffer[i]);
+        printf("%c", ByteBuffer.Buffer[i]);
     }
     printf("\n");
 }
 
 uint8 *
-EncodeHex(byte_buffer *ByteBuffer)
+EncodeHex(byte_buffer ByteBuffer)
 {
-    size_t HexStringLength = (ByteBuffer->Size * 2) + 1;
+    size_t HexStringLength = (ByteBuffer.Size * 2) + 1;
     uint8 *HexString = (uint8 *)malloc(sizeof(uint8) * HexStringLength);
     if(!HexString) printf("Failed to allocate HexString in EncodeHex\n");
 
     uint8 *HexStringStart = HexString;
-    for(int i = 0; i < ByteBuffer->Size; i++)
+    for(int i = 0; i < ByteBuffer.Size; i++)
     {
-        sprintf((char *)HexString, "%02x", ByteBuffer->Buffer[i]);
+        sprintf((char *)HexString, "%02x", ByteBuffer.Buffer[i]);
         HexString += 2;
     }
 
@@ -325,7 +320,7 @@ EncodeHex(byte_buffer *ByteBuffer)
 }
 
 void
-PrintByteBufferAsHexString(byte_buffer *ByteBuffer)
+PrintByteBufferAsHexString(byte_buffer ByteBuffer)
 {
     uint8 *HexString = EncodeHex(ByteBuffer);
     printf("%s\n", HexString);
@@ -333,12 +328,12 @@ PrintByteBufferAsHexString(byte_buffer *ByteBuffer)
 }
 
 void
-PrintByteBufferAsDump(byte_buffer *ByteBuffer)
+PrintByteBufferAsDump(byte_buffer ByteBuffer)
 {
     printf("Char\tHex\tDec\tBin\n");
-    for(int i = 0; i < ByteBuffer->Size; i++)
+    for(int i = 0; i < ByteBuffer.Size; i++)
     {
-        uint8 Val = ByteBuffer->Buffer[i];
+        uint8 Val = ByteBuffer.Buffer[i];
         PrintNiceChar(Val);
         printf("\t0x%02x\t%d\t", Val, Val);
         PrintBits(&Val, 1);
@@ -363,7 +358,7 @@ StringsAreEqual(uint8 *Str1, uint8 *Str2)
     return 1;
 }
 
-byte_buffer *
+byte_buffer
 DecodeBase64(uint8 *Base64String)
 {
     size_t Base64Length = StringLength(Base64String);
@@ -379,7 +374,7 @@ DecodeBase64(uint8 *Base64String)
     }
 
     size_t ByteBufferSize = (Base64Length * 6 / 8) - Base64Padding;
-    byte_buffer *ByteBuffer = CreateByteBuffer(ByteBufferSize);
+    byte_buffer ByteBuffer = CreateByteBuffer(ByteBufferSize);
 
     uint8 ByteMask = 0xff;
     int ByteBufferIndex = 0;
@@ -408,7 +403,7 @@ DecodeBase64(uint8 *Base64String)
             TriOctetIndex < 3;
             TriOctetIndex++)
         {
-            ByteBuffer->Buffer[ByteBufferIndex++] = (QuadSextet >> ((2 - TriOctetIndex) * 8)) & ByteMask;
+            ByteBuffer.Buffer[ByteBufferIndex++] = (QuadSextet >> ((2 - TriOctetIndex) * 8)) & ByteMask;
         }
     }
 
@@ -416,10 +411,10 @@ DecodeBase64(uint8 *Base64String)
 }
 
 uint8 *
-EncodeBase64(byte_buffer *ByteBuffer)
+EncodeBase64(byte_buffer ByteBuffer)
 {
-    int Base64Padding = (ByteBuffer->Size % 3 != 0) ? (3 - (ByteBuffer->Size % 3)) : 0;
-    int PaddedByteBufferSize = ByteBuffer->Size + Base64Padding;
+    int Base64Padding = (ByteBuffer.Size % 3 != 0) ? (3 - (ByteBuffer.Size % 3)) : 0;
+    int PaddedByteBufferSize = ByteBuffer.Size + Base64Padding;
     size_t Base64Length = (PaddedByteBufferSize * 8 / 6);
 
     // NOTE(yuri): +1 length for NUL
@@ -446,7 +441,7 @@ EncodeBase64(byte_buffer *ByteBuffer)
         for(int TriOctetIndex = 0; TriOctetIndex < 3; TriOctetIndex++)
         {
             ByteBufferIndex = TripletIndex*3 + TriOctetIndex;
-            Octet = ByteBuffer->Buffer[ByteBufferIndex];
+            Octet = ByteBuffer.Buffer[ByteBufferIndex];
             QuadSextet <<= 8;
             QuadSextet |= (uint32)Octet;
         }
@@ -469,14 +464,14 @@ EncodeBase64(byte_buffer *ByteBuffer)
 }
 
 void
-PrintByteBufferAsBase64(byte_buffer *ByteBuffer)
+PrintByteBufferAsBase64(byte_buffer ByteBuffer)
 {
     uint8 *Base64Buffer = EncodeBase64(ByteBuffer);
     printf("%s\n", Base64Buffer);
     free(Base64Buffer);
 }
 
-byte_buffer *
+byte_buffer
 StringToByteBuffer(uint8 *String, bool32 IncludeNUL)
 {
     size_t Length = StringLength(String);
@@ -486,13 +481,13 @@ StringToByteBuffer(uint8 *String, bool32 IncludeNUL)
     {
         Length += 1;
     }
-    byte_buffer *ByteBuffer = CreateByteBuffer(Length);
+    byte_buffer ByteBuffer = CreateByteBuffer(Length);
 
     for(int ByteBufferIndex = 0;
-        ByteBufferIndex < ByteBuffer->Size;
+        ByteBufferIndex < ByteBuffer.Size;
         ByteBufferIndex++)
     {
-        ByteBuffer->Buffer[ByteBufferIndex] = *(String + ByteBufferIndex);
+        ByteBuffer.Buffer[ByteBufferIndex] = *(String + ByteBufferIndex);
     }
 
     return ByteBuffer;
@@ -502,10 +497,10 @@ StringToByteBuffer(uint8 *String, bool32 IncludeNUL)
 void
 Print(void *Value, flag Type, flag PrintOptions)
 {
-    byte_buffer *ByteBuffer;
+    byte_buffer ByteBuffer;
     if(Type & BYTE_BUFFER)
     {
-        ByteBuffer = (byte_buffer *)Value;
+        ByteBuffer = *(byte_buffer *)Value;
     }
     else if(Type & HEX_STRING)
     {
@@ -551,33 +546,33 @@ Print(void *Value, flag Type, flag PrintOptions)
     }
 }
 
-byte_buffer *
-XORBuffers(byte_buffer *A, byte_buffer *B)
+byte_buffer
+XORBuffers(byte_buffer A, byte_buffer B)
 {
-    assert(A->Size == B->Size);
-    byte_buffer *Result = CreateByteBuffer(A->Size);
+    assert(A.Size == B.Size);
+    byte_buffer Result = CreateByteBuffer(A.Size);
 
     for(int ByteBufferIndex = 0;
-        ByteBufferIndex < Result->Size;
+        ByteBufferIndex < Result.Size;
         ByteBufferIndex++)
     {
-        Result->Buffer[ByteBufferIndex] =
-            A->Buffer[ByteBufferIndex] ^ B->Buffer[ByteBufferIndex];
+        Result.Buffer[ByteBufferIndex] =
+            A.Buffer[ByteBufferIndex] ^ B.Buffer[ByteBufferIndex];
     }
 
     return Result;
 }
 
-byte_buffer *
-XORBufferSingleChar(byte_buffer *ByteBuffer, uint8 XORChar)
+byte_buffer
+XORBufferSingleChar(byte_buffer ByteBuffer, uint8 XORChar)
 {
-    byte_buffer *Result = CreateByteBuffer(ByteBuffer->Size);
+    byte_buffer Result = CreateByteBuffer(ByteBuffer.Size);
     for(int ByteBufferIndex = 0;
-        ByteBufferIndex < Result->Size;
+        ByteBufferIndex < Result.Size;
         ByteBufferIndex++)
     {
-        Result->Buffer[ByteBufferIndex] =
-            ByteBuffer->Buffer[ByteBufferIndex] ^ XORChar;
+        Result.Buffer[ByteBufferIndex] =
+            ByteBuffer.Buffer[ByteBufferIndex] ^ XORChar;
     }
 
     return Result;
@@ -605,25 +600,25 @@ ScoreLetter(uint8 Letter)
 }
 
 real32
-ScoreBuffer(byte_buffer *ByteBuffer)
+ScoreBuffer(byte_buffer ByteBuffer)
 {
     real32 Result = 0;
 
     for(int ByteBufferIndex = 0;
-        ByteBufferIndex < ByteBuffer->Size;
+        ByteBufferIndex < ByteBuffer.Size;
         ByteBufferIndex++)
     {
-        Result += ScoreLetter(ByteBuffer->Buffer[ByteBufferIndex]);
+        Result += ScoreLetter(ByteBuffer.Buffer[ByteBufferIndex]);
     }
 
-    Result /= ByteBuffer->Size;
+    Result /= ByteBuffer.Size;
 
     return Result;
 }
 
 struct scored_buffer
 {
-    byte_buffer *ByteBuffer;
+    byte_buffer ByteBuffer;
     real32 Score;
 };
 
@@ -637,22 +632,16 @@ CreateEmptyScoredBuffer(void)
 void
 FreeScoreBuffer(scored_buffer ScoredBuffer)
 {
-    if(ScoredBuffer.ByteBuffer)
-    {
-        FreeByteBuffer(ScoredBuffer.ByteBuffer);
-    }
+    FreeByteBuffer(ScoredBuffer.ByteBuffer);
 }
 
 scored_buffer
-MaxBufferScore(scored_buffer ScoredBuffer, byte_buffer *ByteBuffer)
+MaxBufferScore(scored_buffer ScoredBuffer, byte_buffer ByteBuffer)
 {
     real32 NewScore = ScoreBuffer(ByteBuffer);
     if(NewScore > ScoredBuffer.Score)
     {
-        if(ScoredBuffer.ByteBuffer)
-        {
-            FreeByteBuffer(ScoredBuffer.ByteBuffer);
-        }
+        FreeByteBuffer(ScoredBuffer.ByteBuffer);
         ScoredBuffer.Score = NewScore;
         ScoredBuffer.ByteBuffer = CopyByteBuffer(ByteBuffer);
     }
@@ -794,22 +783,22 @@ HammingWeight(uint8 Number)
 }
 
 int
-HammingDistance(byte_buffer *TestA, byte_buffer *TestB)
+HammingDistance(byte_buffer TestA, byte_buffer TestB)
 {
     int Result = 0;
 
     for(int ByteBufferIndex = 0;
-        ByteBufferIndex < TestA->Size;
+        ByteBufferIndex < TestA.Size;
         ByteBufferIndex++)
     {
-        Result += HammingWeight(TestA->Buffer[ByteBufferIndex] ^
-                                TestB->Buffer[ByteBufferIndex]);
+        Result += HammingWeight(TestA.Buffer[ByteBufferIndex] ^
+                                TestB.Buffer[ByteBufferIndex]);
     }
 
     return Result;
 }
 
-byte_buffer *
+byte_buffer
 ReadFileAsWrappedBase64String(file_buffer FileBuffer)
 {
     int NewlineCount = CountOccurancesInString(FileBuffer.Buffer, '\n', FileBuffer.Size);
@@ -832,7 +821,7 @@ ReadFileAsWrappedBase64String(file_buffer FileBuffer)
 
     free(Base64String);
 
-    byte_buffer *ByteBuffer = DecodeBase64(Base64String);
+    byte_buffer ByteBuffer = DecodeBase64(Base64String);
     return ByteBuffer;
 }
 
@@ -840,19 +829,37 @@ int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
+    Challenge1();
+    Challenge2();
+    Challenge3();
+    Challenge4();
+    Challenge5();
 #if 0
-    byte_buffer *TestA = StringToByteBuffer((uint8 *)"this is a test", 0);
-    byte_buffer *TestB = StringToByteBuffer((uint8 *)"wokka wokka!!!", 0);
+    byte_buffer TestA = StringToByteBuffer((uint8 *)"this is a test", 0);
+    byte_buffer TestB = StringToByteBuffer((uint8 *)"wokka wokka!!!", 0);
 
     printf("Total Distance: %d\n", HammingDistance(TestA, TestB));
     FreeByteBuffer(TestA);
     FreeByteBuffer(TestB);
-#endif
 
     file_buffer FileBuffer = OpenFileBuffer((uint8 *)"data/6.txt");
-    byte_buffer *ByteBuffer = ReadFileAsWrappedBase64String(FileBuffer);
-    Print(ByteBuffer, BYTE_BUFFER, AS_DUMP);
+    byte_buffer ByteBuffer = ReadFileAsWrappedBase64String(FileBuffer);
     FreeFileBuffer(FileBuffer);
+    Print(&ByteBuffer, BYTE_BUFFER, AS_DUMP);
+
+    int KeySize = 2;
+    for(int KeySize = 2;
+        KeySize < 40;
+        KeySize++)
+    {
+        byte_buffer KeySizeBuffer = CreateByteBuffer(KeySize);
+        // ByteBuffer
+
+
+    }
+
+    FreeByteBuffer(ByteBuffer);
+#endif
 
 
     FreeGlobalBase64Lookup();
@@ -863,19 +870,19 @@ Challenge5()
 {
     uint8 *PlainText = (uint8 *)"Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal";
     uint8 *Key = (uint8 *)"ICE";
-    byte_buffer *ByteBuffer = StringToByteBuffer(PlainText, 0);
+    byte_buffer ByteBuffer = StringToByteBuffer(PlainText, 0);
 
-    byte_buffer *XORBuffer = CreateByteBuffer(StringLength(PlainText));
+    byte_buffer XORBuffer = CreateByteBuffer(StringLength(PlainText));
     size_t KeyLength = StringLength(Key);
 
     for(int ByteBufferIndex = 0;
-        ByteBufferIndex < ByteBuffer->Size;
+        ByteBufferIndex < ByteBuffer.Size;
         ByteBufferIndex++)
     {
         uint8 XORChar = Key[ByteBufferIndex % KeyLength];
-        XORBuffer->Buffer[ByteBufferIndex] = ByteBuffer->Buffer[ByteBufferIndex] ^ XORChar;
+        XORBuffer.Buffer[ByteBufferIndex] = ByteBuffer.Buffer[ByteBufferIndex] ^ XORChar;
     }
-    Print(XORBuffer, BYTE_BUFFER, AS_HEX);
+    Print(&XORBuffer, BYTE_BUFFER, AS_HEX);
 
     uint8 *Encoded = EncodeHex(XORBuffer);
     if(StringsAreEqual((uint8 *)"0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f", Encoded))
@@ -903,20 +910,20 @@ Challenge4()
             StringIndex < StringBuffers.Size;
             StringIndex++)
         {
-            byte_buffer *CandidateBuffer = DecodeHex(StringBuffers.String[StringIndex]);
+            byte_buffer CandidateBuffer = DecodeHex(StringBuffers.String[StringIndex]);
 
             for(int Char = 0;
                 Char < 900;
                 Char++)
             {
-                byte_buffer *XORBuffer = XORBufferSingleChar(CandidateBuffer, (uint8)Char);
+                byte_buffer XORBuffer = XORBufferSingleChar(CandidateBuffer, (uint8)Char);
                 ScoredBuffer = MaxBufferScore(ScoredBuffer, XORBuffer);
                 FreeByteBuffer(XORBuffer);
             }
             FreeByteBuffer(CandidateBuffer);
         }
 
-        Print(ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
+        Print(&ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
         FreeScoreBuffer(ScoredBuffer);
         FreeStringBuffers(StringBuffers);
     }
@@ -927,18 +934,18 @@ void
 Challenge3()
 {
     scored_buffer ScoredBuffer = CreateEmptyScoredBuffer();
-    byte_buffer *CipherText =
+    byte_buffer CipherText =
         DecodeHex((uint8 *)"1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
 
     for(int Char = 0;
         Char < 255;
         Char++)
     {
-        byte_buffer *XORBuffer = XORBufferSingleChar(CipherText, (uint8)Char);
+        byte_buffer XORBuffer = XORBufferSingleChar(CipherText, (uint8)Char);
         ScoredBuffer = MaxBufferScore(ScoredBuffer, XORBuffer);
         FreeByteBuffer(XORBuffer);
     }
-    Print(ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
+    Print(&ScoredBuffer.ByteBuffer, BYTE_BUFFER, AS_STRING);
 
     FreeScoreBuffer(ScoredBuffer);
     FreeByteBuffer(CipherText);
@@ -962,12 +969,12 @@ Challenge1()
 void
 Challenge2()
 {
-    byte_buffer *A = DecodeHex((uint8 *)"1c0111001f010100061a024b53535009181c");
-    byte_buffer *B = DecodeHex((uint8 *)"686974207468652062756c6c277320657965");
-    Print(A, BYTE_BUFFER, AS_STRING);
-    Print(B, BYTE_BUFFER, AS_STRING);
-    byte_buffer *X = XORBuffers(A, B);
-    Print(X, BYTE_BUFFER, AS_HEX|AS_STRING);
+    byte_buffer A = DecodeHex((uint8 *)"1c0111001f010100061a024b53535009181c");
+    byte_buffer B = DecodeHex((uint8 *)"686974207468652062756c6c277320657965");
+    Print(&A, BYTE_BUFFER, AS_STRING);
+    Print(&B, BYTE_BUFFER, AS_STRING);
+    byte_buffer X = XORBuffers(A, B);
+    Print(&X, BYTE_BUFFER, AS_HEX|AS_STRING);
 
     FreeByteBuffer(A);
     FreeByteBuffer(B);
