@@ -62,6 +62,19 @@ struct base64_lookup
     uint8 *ReverseLookupTable;
 };
 
+struct scored_buffer
+{
+    byte_buffer ByteBuffer;
+    real32 Score;
+    byte_buffer Key;
+};
+
+struct string_buffers
+{
+    uint8 **String;
+    size_t Size;
+};
+
 global_variable base64_lookup GlobalBase64Lookup = {};
 
 void
@@ -583,6 +596,22 @@ XORBufferSingleChar(byte_buffer ByteBuffer, uint8 XORChar)
     return Result;
 }
 
+byte_buffer
+XORBufferRepeating(byte_buffer ByteBuffer, byte_buffer Key)
+{
+    byte_buffer Result = CreateByteBuffer(ByteBuffer.Size);
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < ByteBuffer.Size;
+        ByteBufferIndex++)
+    {
+        Result.Buffer[ByteBufferIndex] =
+            ByteBuffer.Buffer[ByteBufferIndex] ^ Key.Buffer[ByteBufferIndex % Key.Size];
+    }
+
+    return Result;
+}
+
 real32
 ScoreLetter(uint8 Letter)
 {
@@ -621,13 +650,6 @@ ScoreBuffer(byte_buffer ByteBuffer)
     return Result;
 }
 
-struct scored_buffer
-{
-    byte_buffer ByteBuffer;
-    real32 Score;
-    byte_buffer Key;
-};
-
 scored_buffer
 CreateEmptyScoredBuffer(void)
 {
@@ -657,16 +679,10 @@ MaxBufferScore(scored_buffer ScoredBuffer, byte_buffer ByteBuffer, byte_buffer K
     return ScoredBuffer;
 }
 
-struct file_buffer
-{
-    uint8 *Buffer;
-    size_t Size;
-};
-
-file_buffer
+byte_buffer
 OpenFileBuffer(uint8 *Filename)
 {
-    file_buffer FileBuffer = {0};
+    byte_buffer FileBuffer = {0};
     FILE *File = fopen((char *)Filename, "r");
 
     if(File)
@@ -686,7 +702,7 @@ OpenFileBuffer(uint8 *Filename)
 }
 
 void
-FreeFileBuffer(file_buffer FileBuffer)
+FreeFileBuffer(byte_buffer FileBuffer)
 {
     if(FileBuffer.Buffer)
     {
@@ -715,14 +731,9 @@ CountOccurancesInString(uint8 *String, uint8 Char, size_t Length)
     return Result;
 }
 
-struct string_buffers
-{
-    uint8 **String;
-    size_t Size;
-};
 
 string_buffers
-ReadFileIntoStringBuffers(file_buffer FileBuffer)
+ReadFileIntoStringBuffers(byte_buffer FileBuffer)
 {
     string_buffers StringBuffers = {0};
 
@@ -808,7 +819,7 @@ HammingDistance(byte_buffer TestA, byte_buffer TestB)
 }
 
 byte_buffer
-ReadFileAsWrappedBase64String(file_buffer FileBuffer)
+ReadFileAsWrappedBase64String(byte_buffer FileBuffer)
 {
     int NewlineCount = CountOccurancesInString(FileBuffer.Buffer, '\n', FileBuffer.Size);
     printf("Count: %d, Size: %zu\n", NewlineCount, FileBuffer.Size);
@@ -853,32 +864,67 @@ BreakSingleCharacterXOR(byte_buffer ByteBuffer, scored_buffer ScoredBuffer)
     return ScoredBuffer;
 }
 
+real32
+AverageEditDistance(byte_buffer ByteBuffer, int KeySize)
+{
+    real32 Result = 0;
+
+    byte_buffer KeySizeBufferA = CreateByteBuffer(KeySize);
+    byte_buffer KeySizeBufferB = CreateByteBuffer(KeySize);
+    byte_buffer KeySizeBufferC = CreateByteBuffer(KeySize);
+    byte_buffer KeySizeBufferD = CreateByteBuffer(KeySize);
+    for(int KeySizeIndex = 0;
+        KeySizeIndex < KeySize;
+        KeySizeIndex++)
+    {
+        uint8 CharA = ByteBuffer.Buffer[KeySizeIndex];
+        KeySizeBufferA.Buffer[KeySizeIndex] = CharA ? CharA : 0;
+
+        uint8 CharB = ByteBuffer.Buffer[KeySize + KeySizeIndex];
+        KeySizeBufferB.Buffer[KeySizeIndex] = CharB ? CharB : 0;
+
+        uint8 CharC = ByteBuffer.Buffer[KeySize*2 + KeySizeIndex];
+        KeySizeBufferC.Buffer[KeySizeIndex] = CharC ? CharC : 0;
+
+        uint8 CharD = ByteBuffer.Buffer[KeySize*3 + KeySizeIndex];
+        KeySizeBufferD.Buffer[KeySizeIndex] = CharD ? CharD : 0;
+    }
+    Result = (((real32)HammingDistance(KeySizeBufferA, KeySizeBufferB) +
+               (real32)HammingDistance(KeySizeBufferB, KeySizeBufferC) +
+               (real32)HammingDistance(KeySizeBufferC, KeySizeBufferD) +
+               (real32)HammingDistance(KeySizeBufferA, KeySizeBufferC) +
+               (real32)HammingDistance(KeySizeBufferA, KeySizeBufferD) +
+               (real32)HammingDistance(KeySizeBufferB, KeySizeBufferD))
+              / 6) / KeySize;
+
+    FreeByteBuffer(KeySizeBufferA);
+    FreeByteBuffer(KeySizeBufferB);
+    FreeByteBuffer(KeySizeBufferC);
+    FreeByteBuffer(KeySizeBufferD);
+
+    return Result;
+}
+
 int
 main(int argc, char *argv[])
 {
     FillOutGlobalBase64Lookup();
-#if 0
-    byte_buffer TestA = StringToByteBuffer((uint8 *)"this is a test", 0);
-    byte_buffer TestB = StringToByteBuffer((uint8 *)"wokka wokka!!!", 0);
-
-    printf("Total Distance: %d\n", HammingDistance(TestA, TestB));
-    FreeByteBuffer(TestA);
-    FreeByteBuffer(TestB);
-#endif
 
     // Challenge1();
     // Challenge2();
     // Challenge3();
     // Challenge4();
     // Challenge5();
-    Challenge6();
+    // Challenge6();
+
     FreeGlobalBase64Lookup();
 }
 
+// Break repeating-key XOR
 void
 Challenge6()
 {
-    file_buffer FileBuffer = OpenFileBuffer((uint8 *)"data/6.txt");
+    byte_buffer FileBuffer = OpenFileBuffer((uint8 *)"data/6.txt");
     byte_buffer ByteBuffer = ReadFileAsWrappedBase64String(FileBuffer);
     FreeFileBuffer(FileBuffer);
 
@@ -888,39 +934,7 @@ Challenge6()
         KeySize < 40;
         KeySize++)
     {
-        byte_buffer KeySizeBufferA = CreateByteBuffer(KeySize);
-        byte_buffer KeySizeBufferB = CreateByteBuffer(KeySize);
-        byte_buffer KeySizeBufferC = CreateByteBuffer(KeySize);
-        byte_buffer KeySizeBufferD = CreateByteBuffer(KeySize);
-        for(int KeySizeIndex = 0;
-            KeySizeIndex < KeySize;
-            KeySizeIndex++)
-        {
-            uint8 CharA = ByteBuffer.Buffer[KeySizeIndex];
-            KeySizeBufferA.Buffer[KeySizeIndex] = CharA ? CharA : 0;
-
-            uint8 CharB = ByteBuffer.Buffer[KeySize + KeySizeIndex];
-            KeySizeBufferB.Buffer[KeySizeIndex] = CharB ? CharB : 0;
-
-            uint8 CharC = ByteBuffer.Buffer[KeySize*2 + KeySizeIndex];
-            KeySizeBufferC.Buffer[KeySizeIndex] = CharC ? CharC : 0;
-
-            uint8 CharD = ByteBuffer.Buffer[KeySize*3 + KeySizeIndex];
-            KeySizeBufferD.Buffer[KeySizeIndex] = CharD ? CharD : 0;
-        }
-        real32 EditDistance = (((real32)HammingDistance(KeySizeBufferA, KeySizeBufferB) +
-                                (real32)HammingDistance(KeySizeBufferB, KeySizeBufferC) +
-                                (real32)HammingDistance(KeySizeBufferC, KeySizeBufferD) +
-                                (real32)HammingDistance(KeySizeBufferA, KeySizeBufferC) +
-                                (real32)HammingDistance(KeySizeBufferA, KeySizeBufferD) +
-                                (real32)HammingDistance(KeySizeBufferB, KeySizeBufferD))
-                               / 6) / KeySize;
-
-        FreeByteBuffer(KeySizeBufferA);
-        FreeByteBuffer(KeySizeBufferB);
-        FreeByteBuffer(KeySizeBufferC);
-        FreeByteBuffer(KeySizeBufferD);
-
+        real32 EditDistance = AverageEditDistance(ByteBuffer, KeySize);
         if(EditDistance < SmallestEditDistance)
         {
             SmallestEditDistance = EditDistance;
@@ -957,52 +971,41 @@ Challenge6()
     }
     Print(&KeyByteBuffer, BYTE_BUFFER, AS_NICE_STRING);
 
-    // Print(&ByteBuffer, BYTE_BUFFER, AS_DUMP);
+    byte_buffer PlainText = XORBufferRepeating(ByteBuffer, KeyByteBuffer);
+    Print(&PlainText, BYTE_BUFFER, AS_STRING);
 
     FreeByteBuffer(KeyByteBuffer);
     FreeByteBuffer(ByteBuffer);
-
-
-
-
-
 }
 
+// Implement repeating-key XOR
 void
 Challenge5()
 {
     uint8 *PlainText = (uint8 *)"Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal";
     uint8 *Key = (uint8 *)"ICE";
-    byte_buffer ByteBuffer = StringToByteBuffer(PlainText, 0);
+    byte_buffer PlainTextByteBuffer = StringToByteBuffer(PlainText, 0);
+    byte_buffer KeyByteBuffer = StringToByteBuffer(Key, 0);
+    byte_buffer Ciphered = XORBufferRepeating(PlainTextByteBuffer, KeyByteBuffer);
 
-    byte_buffer XORBuffer = CreateByteBuffer(StringLength(PlainText));
-    size_t KeyLength = StringLength(Key);
-
-    for(int ByteBufferIndex = 0;
-        ByteBufferIndex < ByteBuffer.Size;
-        ByteBufferIndex++)
-    {
-        uint8 XORChar = Key[ByteBufferIndex % KeyLength];
-        XORBuffer.Buffer[ByteBufferIndex] = ByteBuffer.Buffer[ByteBufferIndex] ^ XORChar;
-    }
-    Print(&XORBuffer, BYTE_BUFFER, AS_HEX);
-
-    uint8 *Encoded = EncodeHex(XORBuffer);
+    uint8 *Encoded = EncodeHex(Ciphered);
     if(StringsAreEqual((uint8 *)"0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f", Encoded))
     {
-        printf("Equal!\n");
+        printf("Repeating-Key XOR buffers are equal!\n");
     }
     free(Encoded);
 
-    FreeByteBuffer(ByteBuffer);
-    FreeByteBuffer(XORBuffer);
+    FreeByteBuffer(PlainTextByteBuffer);
+    FreeByteBuffer(KeyByteBuffer);
+    FreeByteBuffer(Ciphered);
 }
 
+// Detect single-character XOR
 void
 Challenge4()
 {
     uint8 *Filename = (uint8 *)"data/4.txt";
-    file_buffer FileBuffer = OpenFileBuffer(Filename);
+    byte_buffer FileBuffer = OpenFileBuffer(Filename);
 
     if(FileBuffer.Buffer)
     {
@@ -1025,6 +1028,7 @@ Challenge4()
     FreeFileBuffer(FileBuffer);
 }
 
+// Single-byte XOR cipher
 void
 Challenge3()
 {
@@ -1039,20 +1043,7 @@ Challenge3()
     printf("\n");
 }
 
-void
-Challenge1()
-{
-    uint8 *HexString = (uint8 *)
-        "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d";
-
-    uint8 *Base64String = (uint8 *)
-        "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t";
-
-    Print(HexString, HEX_STRING, AS_BASE64);
-    Print(Base64String, BASE64_STRING, AS_HEX);
-    printf("\n");
-}
-
+// Fixed XOR
 void
 Challenge2()
 {
@@ -1068,3 +1059,19 @@ Challenge2()
     FreeByteBuffer(X);
     printf("\n");
 }
+
+// Convert hex to base64
+void
+Challenge1()
+{
+    uint8 *HexString = (uint8 *)
+        "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d";
+
+    uint8 *Base64String = (uint8 *)
+        "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t";
+
+    Print(HexString, HEX_STRING, AS_BASE64);
+    Print(Base64String, BASE64_STRING, AS_HEX);
+    printf("\n");
+}
+
