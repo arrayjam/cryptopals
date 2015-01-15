@@ -2,5 +2,6 @@
 
 set -e
 
-rm -f build/challenges
+rm -r build/
+mkdir -p build
 clang -O0 -g challenges.cpp -o build/challenges && ./build/challenges
