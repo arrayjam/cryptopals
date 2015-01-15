@@ -2,5 +2,5 @@
 
 set -e
 
-rm -f formats
-clang -O0 -g formats.cpp -o formats && ./formats "foo"
+rm -f build/challenges
+clang -O0 -g challenges.cpp -o build/challenges && ./build/challenges
