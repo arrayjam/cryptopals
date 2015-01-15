@@ -71,7 +71,7 @@ Challenge6()
     }
     Print(&KeyByteBuffer, BYTE_BUFFER, AS_NICE_STRING);
 
-    byte_buffer PlainText = XORBufferRepeating(ByteBuffer, KeyByteBuffer);
+    byte_buffer PlainText = RepeatingByteBufferXOR(ByteBuffer, KeyByteBuffer);
     Print(&PlainText, BYTE_BUFFER, AS_STRING);
     FreeByteBuffer(PlainText);
 
@@ -87,7 +87,7 @@ Challenge5()
     uint8 *Key = (uint8 *)"ICE";
     byte_buffer PlainTextByteBuffer = StringToByteBuffer(PlainText, 0);
     byte_buffer KeyByteBuffer = StringToByteBuffer(Key, 0);
-    byte_buffer Ciphered = XORBufferRepeating(PlainTextByteBuffer, KeyByteBuffer);
+    byte_buffer Ciphered = RepeatingByteBufferXOR(PlainTextByteBuffer, KeyByteBuffer);
 
     uint8 *Encoded = EncodeHex(Ciphered);
     if(StringsAreEqual((uint8 *)"0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f", Encoded))
@@ -152,7 +152,7 @@ Challenge2()
     byte_buffer B = DecodeHex((uint8 *)"686974207468652062756c6c277320657965");
     Print(&A, BYTE_BUFFER, AS_STRING);
     Print(&B, BYTE_BUFFER, AS_STRING);
-    byte_buffer X = XORBuffers(A, B);
+    byte_buffer X = ByteBufferXOR(A, B);
     Print(&X, BYTE_BUFFER, AS_HEX|AS_STRING);
 
     FreeByteBuffer(A);
