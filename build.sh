@@ -1,7 +1,0 @@
-#!/usr/bin/env sh
-
-set -e
-
-rm -rf build/
-mkdir -p build
-clang -O0 -g challenges.cpp -o build/challenges && ./build/challenges

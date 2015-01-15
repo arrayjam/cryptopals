@@ -73,6 +73,7 @@ Challenge6()
 
     byte_buffer PlainText = XORBufferRepeating(ByteBuffer, KeyByteBuffer);
     Print(&PlainText, BYTE_BUFFER, AS_STRING);
+    FreeByteBuffer(PlainText);
 
     FreeByteBuffer(KeyByteBuffer);
     FreeByteBuffer(ByteBuffer);
