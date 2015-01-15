@@ -798,22 +798,17 @@ AverageEditDistance(byte_buffer ByteBuffer, int KeySize)
     byte_buffer KeySizeBufferB = CreateByteBuffer(KeySize);
     byte_buffer KeySizeBufferC = CreateByteBuffer(KeySize);
     byte_buffer KeySizeBufferD = CreateByteBuffer(KeySize);
+
     for(int KeySizeIndex = 0;
         KeySizeIndex < KeySize;
         KeySizeIndex++)
     {
-        uint8 CharA = ByteBuffer.Buffer[KeySizeIndex];
-        KeySizeBufferA.Buffer[KeySizeIndex] = CharA ? CharA : 0;
-
-        uint8 CharB = ByteBuffer.Buffer[KeySize + KeySizeIndex];
-        KeySizeBufferB.Buffer[KeySizeIndex] = CharB ? CharB : 0;
-
-        uint8 CharC = ByteBuffer.Buffer[KeySize*2 + KeySizeIndex];
-        KeySizeBufferC.Buffer[KeySizeIndex] = CharC ? CharC : 0;
-
-        uint8 CharD = ByteBuffer.Buffer[KeySize*3 + KeySizeIndex];
-        KeySizeBufferD.Buffer[KeySizeIndex] = CharD ? CharD : 0;
+        KeySizeBufferA.Buffer[KeySizeIndex] = ByteBuffer.Buffer[KeySizeIndex];
+        KeySizeBufferB.Buffer[KeySizeIndex] = ByteBuffer.Buffer[KeySize + KeySizeIndex];
+        KeySizeBufferC.Buffer[KeySizeIndex] = ByteBuffer.Buffer[KeySize*2 + KeySizeIndex];
+        KeySizeBufferD.Buffer[KeySizeIndex] = ByteBuffer.Buffer[KeySize*3 + KeySizeIndex];
     }
+
     Result = (((real32)HammingDistance(KeySizeBufferA, KeySizeBufferB) +
                (real32)HammingDistance(KeySizeBufferB, KeySizeBufferC) +
                (real32)HammingDistance(KeySizeBufferC, KeySizeBufferD) +
