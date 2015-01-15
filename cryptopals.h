@@ -23,7 +23,6 @@ typedef double real64;
 
 #define internal static
 #define local_persist static
-#define global_variable static
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 

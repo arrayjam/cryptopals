@@ -1,6 +1,5 @@
 #include "cryptopals.h"
 
-global_variable base64_lookup GlobalBase64Lookup = {};
 
 uint8 *
 SeekToChar(uint8 *String, uint8 Char, size_t MaxSeek)
@@ -123,6 +122,7 @@ EncodeHex(byte_buffer ByteBuffer)
     return HexString;
 }
 
+internal base64_lookup GlobalBase64Lookup = {};
 void
 FillOutGlobalBase64Lookup()
 {
