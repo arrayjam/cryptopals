@@ -28,7 +28,7 @@ Challenge6()
     byte_buffer ByteBuffer = ReadFileAsWrappedBase64String(FileBuffer);
     FreeFileBuffer(FileBuffer);
 
-    real32 SmallestEditDistance = 1000;
+    real32 SmallestEditDistance = 10000;
     int KeySizeGuess = 0;
     for(int KeySize = 2;
         KeySize < 40;
