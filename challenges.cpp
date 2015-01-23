@@ -4,12 +4,13 @@
 void
 Challenges(void)
 {
-    Challenge1();
-    Challenge2();
-    Challenge3();
-    Challenge4();
-    Challenge5();
-    Challenge6();
+    AES();
+    // Challenge1();
+    // Challenge2();
+    // Challenge3();
+    // Challenge4();
+    // Challenge5();
+    // Challenge6();
 }
 
 int

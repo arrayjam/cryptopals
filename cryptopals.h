@@ -1,10 +1,10 @@
 #if !defined(CRYPTOPALS_H)
 
-#include <stdio.h>
 #include <stdint.h>
+#include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <ctype.h>
 #include "portable_endian.h"
 
 typedef int8_t int8;
@@ -68,6 +68,7 @@ struct string_buffers
   uint8 **String;
   size_t Size;
 };
+
 
 #define CRYPTOPALS_H
 #endif
