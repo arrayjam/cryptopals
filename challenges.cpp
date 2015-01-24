@@ -13,14 +13,7 @@ Challenges(void)
     // byte_buffer Input = CreateByteBuffer(16);
     // Input.Buffer = InputBytes;
 
-    byte_buffer PlainText = DecodeHex((uint8 *)"00112233445566778899aabbccddeeff");
-    byte_buffer Key = DecodeHex((uint8 *)"000102030405060708090a0b0c0d0e0f");
-
-
-
-
-    byte_buffer CipherText = AES(PlainText, Key);
-    Print(&CipherText, BYTE_BUFFER, AS_DUMP);
+    AESAllTests();
     // Challenge1();
     // Challenge2();
     // Challenge3();

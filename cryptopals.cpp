@@ -80,6 +80,31 @@ CopyByteBuffer(byte_buffer ByteBuffer)
     return Result;
 }
 
+bool32
+ByteBuffersEqual(byte_buffer TestA, byte_buffer TestB)
+{
+    bool32 Result = false;
+
+    if(TestA.Size != TestB.Size)
+    {
+        return Result;
+    }
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < TestA.Size;
+        ++ByteBufferIndex)
+    {
+        if(TestA.Buffer[ByteBufferIndex] != TestB.Buffer[ByteBufferIndex])
+        {
+            return Result;
+        }
+    }
+
+    Result = true;
+
+    return Result;
+}
+
 byte_buffer
 DecodeHex(uint8 *HexString)
 {
@@ -1274,6 +1299,53 @@ AES(byte_buffer Input, byte_buffer Key)
     return StateToOutput(State);
 }
 
+
+void
+AESTest(const char *PlainTextString, const char *KeyString, const char *ExpectedCipherTextString)
+{
+    byte_buffer PlainText = DecodeHex((uint8 *)PlainTextString);
+    byte_buffer Key = DecodeHex((uint8 *)KeyString);
+    byte_buffer CipherText = AES(PlainText, Key);
+
+    byte_buffer ExpectedCipherText = DecodeHex((uint8 *)ExpectedCipherTextString);
+    assert(ByteBuffersEqual(CipherText, ExpectedCipherText));
+}
+
+void
+AES128Test(void)
+{
+    AESTest("00112233445566778899aabbccddeeff",
+            "000102030405060708090a0b0c0d0e0f",
+            "69c4e0d86a7b0430d8cdb78070b4c55a");
+    printf("AES-128 test passed!\n");
+}
+
+void
+AES192Test(void)
+{
+    AESTest("00112233445566778899aabbccddeeff",
+            "000102030405060708090a0b0c0d0e0f1011121314151617",
+            "dda97ca4864cdfe06eaf70a0ec0d7191");
+    printf("AES-192 test passed!\n");
+}
+
+void
+AES256Test(void)
+{
+    AESTest("00112233445566778899aabbccddeeff",
+            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+            "8ea2b7ca516745bfeafc49904b496089");
+    printf("AES-192 test passed!\n");
+}
+
+
+void
+AESAllTests(void)
+{
+    AES128Test();
+    AES192Test();
+    AES256Test();
+}
 void
 Initialize(void)
 {
