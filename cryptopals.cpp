@@ -1034,7 +1034,7 @@ ShiftRows(state State)
 }
 
 state
-InputToState(uint8 InputBytes[])
+InputToState(byte_buffer Input)
 {
     state State = {};
 
@@ -1046,15 +1046,35 @@ InputToState(uint8 InputBytes[])
             Column < 4;
             ++Column)
         {
-            State.Byte[Row][Column] = InputBytes[Row + (4 * Column)];
+            State.Byte[Row][Column] = Input.Buffer[Row + (4 * Column)];
         }
     }
 
     return State;
 }
 
+byte_buffer
+StateToOutput(state State)
+{
+    byte_buffer Result = CreateByteBuffer(16);
+
+    for(int Row = 0;
+        Row < 4;
+        ++Row)
+    {
+        for(int Column = 0;
+            Column < 4;
+            ++Column)
+        {
+            Result.Buffer[Row + (4*Column)] = State.Byte[Row][Column];
+        }
+    }
+
+    return Result;
+}
+
 word *
-KeyExpansion(uint8 Key[], int Nk, int Nb, int Nr)
+KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
 {
     int ExpandedKeyLength = Nb * (Nr + 1);
     printf("ExpandedKeyLength: %d\n", ExpandedKeyLength);
@@ -1069,10 +1089,10 @@ KeyExpansion(uint8 Key[], int Nk, int Nb, int Nr)
     while(KeyExpansionIndex < Nk)
     {
         printf("KeyExpansionIndex: %d\n", KeyExpansionIndex);
-        ExpandedKey[KeyExpansionIndex].Word = ((Key[(4*KeyExpansionIndex) + 0] << 24) |
-                                               (Key[(4*KeyExpansionIndex) + 1] << 16) |
-                                               (Key[(4*KeyExpansionIndex) + 2] << 8) |
-                                               (Key[(4*KeyExpansionIndex) + 3] << 0));
+        ExpandedKey[KeyExpansionIndex].Word = ((Key.Buffer[(4*KeyExpansionIndex) + 0] << 24) |
+                                               (Key.Buffer[(4*KeyExpansionIndex) + 1] << 16) |
+                                               (Key.Buffer[(4*KeyExpansionIndex) + 2] << 8) |
+                                               (Key.Buffer[(4*KeyExpansionIndex) + 3] << 0));
         printf("ExpandedKey word: %08x\n", ExpandedKey[KeyExpansionIndex].Word);
         KeyExpansionIndex++;
     }
@@ -1149,23 +1169,17 @@ MixColumns(state State)
 
     return State;
 }
-void
-AES(void)
-{
-    // TODO(yuri): Word/State data structure unification
-    uint8 InputBytes[16] = {
-        0x32, 0x43, 0xf6, 0xa8,
-        0x88, 0x5a, 0x30, 0x8d,
-        0x31, 0x31, 0x98, 0xa2,
-        0xe0, 0x37, 0x07, 0x34
-    };
 
-    uint8 Key[16] = {
-        0x2b, 0x7e, 0x15, 0x16,
-        0x28, 0xae, 0xd2, 0xa6,
-        0xab, 0xf7, 0x15, 0x88,
-        0x09, 0xcf, 0x4f, 0x3c
-    };
+byte_buffer
+AES(byte_buffer Input, byte_buffer Key)
+{
+
+    // uint8 Key[16] = {
+    //     0x2b, 0x7e, 0x15, 0x16,
+    //     0x28, 0xae, 0xd2, 0xa6,
+    //     0xab, 0xf7, 0x15, 0x88,
+    //     0x09, 0xcf, 0x4f, 0x3c
+    // };
 
     // uint8 Key[24] = {
     //     0x8e, 0x73, 0xb0, 0xf7,
@@ -1189,30 +1203,28 @@ AES(void)
 
     int Nb = 4; // Number of 32-bit words in Plaintext
 
-    size_t KeySize = ArrayCount(Key);
-
     int Nr = 0; // Number of rounds;
-    int Nk = KeySize / 4; // Number of columns
-    if(KeySize * 8 == 128)
+    int Nk = Key.Size / 4; // Number of columns
+    if(Key.Size * 8 == 128)
     {
         Nr = 10;
     }
-    else if(KeySize * 8 == 192)
+    else if(Key.Size * 8 == 192)
     {
         Nr = 12;
     }
-    else if(KeySize * 8 == 256)
+    else if(Key.Size * 8 == 256)
     {
         Nr = 14;
     }
 
-    assert(ArrayCount(InputBytes) * 8 == 128);
+    assert(Input.Size * 8 == 128);
     assert(Nb == 4);
     assert(Nr == 10 || Nr == 12 || Nr == 14);
     assert(Nk == 4 || Nk == 6 || Nk == 8);
 
     // NOTE(yuri): Row, Column
-    state State = InputToState(InputBytes);
+    state State = InputToState(Input);
     PrintState(State);
 
     word *ExpandedKey = KeyExpansion(Key, Nk, Nb, Nr);
@@ -1258,6 +1270,8 @@ AES(void)
     State = AddRoundKey(State, ExpandedKey, Round, Nb);
     printf("After Last AddRoundKey Round Number: %d\n", Round);
     PrintState(State);
+
+    return StateToOutput(State);
 }
 
 void

@@ -4,7 +4,23 @@
 void
 Challenges(void)
 {
-    AES();
+    // uint8 InputBytes[16] = {
+    //     0x32, 0x43, 0xf6, 0xa8,
+    //     0x88, 0x5a, 0x30, 0x8d,
+    //     0x31, 0x31, 0x98, 0xa2,
+    //     0xe0, 0x37, 0x07, 0x34
+    // };
+    // byte_buffer Input = CreateByteBuffer(16);
+    // Input.Buffer = InputBytes;
+
+    byte_buffer PlainText = DecodeHex((uint8 *)"00112233445566778899aabbccddeeff");
+    byte_buffer Key = DecodeHex((uint8 *)"000102030405060708090a0b0c0d0e0f");
+
+
+
+
+    byte_buffer CipherText = AES(PlainText, Key);
+    Print(&CipherText, BYTE_BUFFER, AS_DUMP);
     // Challenge1();
     // Challenge2();
     // Challenge3();
