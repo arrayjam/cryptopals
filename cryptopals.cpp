@@ -824,8 +824,22 @@ AverageEditDistance(byte_buffer ByteBuffer, int KeySize)
     return Result;
 }
 
+union word
+{
+    struct
+    {
+        uint32 Word;
+    };
+    uint8 Byte[4];
+};
+
+struct state
+{
+    uint8 Byte[4][4];
+};
+
 void
-PrintState(uint8 State[4][4])
+PrintState(state State)
 {
     for(int Row = 0;
         Row < 4;
@@ -835,21 +849,12 @@ PrintState(uint8 State[4][4])
             Column < 4;
             ++Column)
         {
-            printf("%02x\t", State[Row][Column]);
+            printf("%02x\t", State.Byte[Row][Column]);
         }
         printf("\n");
     }
     printf("\n");
 }
-
-union word
-{
-    struct
-    {
-        uint32 Word;
-    };
-    uint8 Byte[4];
-};
 
 uint8
 SubByte(uint8 Byte)
@@ -971,6 +976,179 @@ Mul3(uint8 Byte)
     return Result;
 }
 
+
+state
+AddRoundKey(state State, word *ExpandedKey, int Round, int Nb)
+{
+    int ExpandedKeyIndex = Round * Nb;
+    for(int Column = 0;
+        Column < 4;
+        ++Column)
+    {
+        for(int Row = 0;
+            Row < 4;
+            ++Row)
+        {
+
+            uint8 OldState = State.Byte[Row][Column];
+            uint8 XORByte = ExpandedKey[ExpandedKeyIndex + Column].Byte[3 - Row];
+            uint8 NewState = OldState ^ XORByte;
+            // printf("XORByte Index: %d, Row: %d\n", ExpandedKeyIndex + Column, Row);
+
+            printf("OldState: %02x\tXORByte: %02x\tNewState: %02x\n", OldState, XORByte, NewState);
+            State.Byte[Row][Column] = NewState;
+        }
+    }
+    return State;
+}
+
+state
+SubBytes(state State)
+{
+    for(int Row = 0;
+        Row < 4;
+        ++Row)
+    {
+        for(int Column = 0;
+            Column < 4;
+            ++Column)
+        {
+            State.Byte[Row][Column] = SubByte(State.Byte[Row][Column]);
+        }
+    }
+
+    return State;
+}
+
+state
+ShiftRows(state State)
+{
+    for(int Row = 0;
+        Row < 4;
+        ++Row)
+    {
+        ShiftRow(State.Byte[Row], Row);
+    }
+
+    return State;
+}
+
+state
+InputToState(uint8 InputBytes[])
+{
+    state State = {};
+
+    for(int Row = 0;
+        Row < 4;
+        ++Row)
+    {
+        for(int Column = 0;
+            Column < 4;
+            ++Column)
+        {
+            State.Byte[Row][Column] = InputBytes[Row + (4 * Column)];
+        }
+    }
+
+    return State;
+}
+
+word *
+KeyExpansion(uint8 Key[], int Nk, int Nb, int Nr)
+{
+    int ExpandedKeyLength = Nb * (Nr + 1);
+    printf("ExpandedKeyLength: %d\n", ExpandedKeyLength);
+
+    word *ExpandedKey = (word *)malloc(sizeof(word) * (Nb * (Nr + 1)));
+
+    word Temp;
+
+    int KeyExpansionIndex = 0;
+    uint8 Rcon[] = {0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
+
+    while(KeyExpansionIndex < Nk)
+    {
+        printf("KeyExpansionIndex: %d\n", KeyExpansionIndex);
+        ExpandedKey[KeyExpansionIndex].Word = ((Key[(4*KeyExpansionIndex) + 0] << 24) |
+                                               (Key[(4*KeyExpansionIndex) + 1] << 16) |
+                                               (Key[(4*KeyExpansionIndex) + 2] << 8) |
+                                               (Key[(4*KeyExpansionIndex) + 3] << 0));
+        printf("ExpandedKey word: %08x\n", ExpandedKey[KeyExpansionIndex].Word);
+        KeyExpansionIndex++;
+    }
+
+    KeyExpansionIndex = Nk;
+
+    while(KeyExpansionIndex < ExpandedKeyLength)
+    {
+        printf("i: %d\n", KeyExpansionIndex);
+        Temp = ExpandedKey[KeyExpansionIndex - 1];
+        printf("Temp: %08x\n", Temp.Word);
+
+        if(KeyExpansionIndex % Nk == 0)
+        {
+            Temp.Word = (Temp.Word << 8) | (Temp.Word >> 24);
+            printf("After RotWord: %08x\n", Temp.Word);
+
+            Temp = SubWord(Temp);
+            printf("After SubWord: %08x\n", Temp.Word);
+
+            printf("Rcon[i/Nk]: %08x\n", (Rcon[KeyExpansionIndex / Nk] << 24));
+
+            Temp.Word ^= (Rcon[KeyExpansionIndex / Nk] << 24);
+            printf("After XOR with Rcon: %08x\n", Temp.Word);
+        }
+        else if(Nk > 6 && (KeyExpansionIndex % Nk) == 4)
+        {
+            Temp = SubWord(Temp);
+            printf("After SubWord: %08x\n", Temp.Word);
+        }
+
+        ExpandedKey[KeyExpansionIndex].Word = ExpandedKey[KeyExpansionIndex - Nk].Word ^ Temp.Word;
+        printf("After end XOR: %08x\n", ExpandedKey[KeyExpansionIndex].Word);
+        KeyExpansionIndex++;
+        printf("\n\n");
+    }
+
+    for(int ExpandedIndex = 0;
+        ExpandedIndex < ExpandedKeyLength;
+        ++ExpandedIndex)
+    {
+        printf("%08x, index: %d\n", ExpandedKey[ExpandedIndex].Word, ExpandedIndex);
+        if((ExpandedIndex + 1) % 4 == 0)
+        {
+            printf("\n");
+        }
+    }
+
+    return ExpandedKey;
+}
+
+state
+MixColumns(state State)
+{
+    state TState;
+    for(int Column = 0;
+        Column < 4;
+        ++Column)
+    {
+        TState = State;
+
+        State.Byte[0][Column] =
+            Mul3(TState.Byte[1][Column]) ^ Mul2(TState.Byte[0][Column]) ^ TState.Byte[2][Column] ^ TState.Byte[3][Column];
+
+        State.Byte[1][Column] =
+            Mul3(TState.Byte[2][Column]) ^ Mul2(TState.Byte[1][Column]) ^ TState.Byte[0][Column] ^ TState.Byte[3][Column];
+
+        State.Byte[2][Column] =
+            Mul3(TState.Byte[3][Column]) ^ Mul2(TState.Byte[2][Column]) ^ TState.Byte[1][Column] ^ TState.Byte[0][Column];
+
+        State.Byte[3][Column] =
+            Mul3(TState.Byte[0][Column]) ^ Mul2(TState.Byte[3][Column]) ^ TState.Byte[2][Column] ^ TState.Byte[1][Column];
+    }
+
+    return State;
+}
 void
 AES(void)
 {
@@ -1034,165 +1212,52 @@ AES(void)
     assert(Nk == 4 || Nk == 6 || Nk == 8);
 
     // NOTE(yuri): Row, Column
-    uint8 State[4][4];
-
-    for(int Row = 0;
-        Row < 4;
-        ++Row)
-    {
-        for(int Column = 0;
-            Column < 4;
-            ++Column)
-        {
-            State[Row][Column] = InputBytes[Row + (4 * Column)];
-        }
-    }
-
+    state State = InputToState(InputBytes);
     PrintState(State);
 
-    int ExpandedKeyLength = Nb * (Nr + 1);
-    printf("ExpandedKeyLength: %d\n", ExpandedKeyLength);
+    word *ExpandedKey = KeyExpansion(Key, Nk, Nb, Nr);
 
-    word *ExpandedKey = (word *)malloc(sizeof(word) * (Nb * (Nr + 1)));
-
-    word Temp;
-
-    int KeyExpansionIndex = 0;
-    uint8 Rcon[] = {0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
-
-    while(KeyExpansionIndex < Nk)
-    {
-        printf("KeyExpansionIndex: %d\n", KeyExpansionIndex);
-        ExpandedKey[KeyExpansionIndex].Word = ((Key[(4*KeyExpansionIndex) + 0] << 24) |
-                                               (Key[(4*KeyExpansionIndex) + 1] << 16) |
-                                               (Key[(4*KeyExpansionIndex) + 2] << 8) |
-                                               (Key[(4*KeyExpansionIndex) + 3] << 0));
-        printf("ExpandedKey word: %08x\n", ExpandedKey[KeyExpansionIndex].Word);
-        KeyExpansionIndex++;
-    }
-
-    KeyExpansionIndex = Nk;
-
-    while(KeyExpansionIndex < ExpandedKeyLength)
-    {
-        printf("i: %d\n", KeyExpansionIndex);
-        Temp = ExpandedKey[KeyExpansionIndex - 1];
-        printf("Temp: %08x\n", Temp.Word);
-
-        if(KeyExpansionIndex % Nk == 0)
-        {
-            Temp.Word = (Temp.Word << 8) | (Temp.Word >> 24);
-            printf("After RotWord: %08x\n", Temp.Word);
-
-            Temp = SubWord(Temp);
-            printf("After SubWord: %08x\n", Temp.Word);
-
-            printf("Rcon[i/Nk]: %08x\n", (Rcon[KeyExpansionIndex / Nk] << 24));
-
-            Temp.Word ^= (Rcon[KeyExpansionIndex / Nk] << 24);
-            printf("After XOR with Rcon: %08x\n", Temp.Word);
-        }
-        else if(Nk > 6 && (KeyExpansionIndex % Nk) == 4)
-        {
-            Temp = SubWord(Temp);
-            printf("After SubWord: %08x\n", Temp.Word);
-        }
-
-        ExpandedKey[KeyExpansionIndex].Word = ExpandedKey[KeyExpansionIndex - Nk].Word ^ Temp.Word;
-        printf("After end XOR: %08x\n", ExpandedKey[KeyExpansionIndex].Word);
-        KeyExpansionIndex++;
-        printf("\n\n");
-    }
-
-    for(int ExpandedIndex = 0;
-        ExpandedIndex < ExpandedKeyLength;
-        ++ExpandedIndex)
-    {
-        printf("%08x\n", ExpandedKey[ExpandedIndex].Word);
-    }
-
-    PrintState(State);
-
-    printf("Initial AddRoundKey: START\n");
     int Round = 0;
-    for(int Column = 0;
-        Column < 4;
-        ++Column)
-    {
-        for(int Row = 0;
-            Row < 4;
-            ++Row)
-        {
 
-            uint8 OldState = State[Row][Column];
-            uint8 XORByte = ExpandedKey[Column].Byte[3 - Row];
-            uint8 NewState = OldState ^ XORByte;
-            // printf("XORByte Index: %d, Row: %d\n", ExpandedKeyIndex + Column, Row);
-
-            printf("OldState: %02x\tXORByte: %02x\tNewState: %02x\n", OldState, XORByte, NewState);
-            State[Row][Column] = NewState;
-        }
-    }
-
+    State = AddRoundKey(State, ExpandedKey, Round, Nb);
     printf("Initial AddRoundKey: DONE\n");
     PrintState(State);
 
     int ExpandedKeyIndex;
     for(Round = 1;
-        Round < 2; //Nr - 1;
+        Round <= Nr - 1;
         ++Round)
     {
         ExpandedKeyIndex = Round * Nb;
-        for(int Row = 0;
-            Row < 4;
-            ++Row)
-        {
-            for(int Column = 0;
-                Column < 4;
-                ++Column)
-            {
-                State[Row][Column] = SubByte(State[Row][Column]);
-            }
-        }
 
+        State = SubBytes(State);
         printf("After SubBytes Round Number: %d\n", Round);
         PrintState(State);
 
-        for(int Row = 0;
-            Row < 4;
-            ++Row)
-        {
-            ShiftRow(State[Row], Row);
-        }
+        State = ShiftRows(State);
         printf("After ShiftRow Round Number: %d\n", Round);
         PrintState(State);
 
-        uint8 TState[4][4];
-        for(int Column = 0;
-            Column < 4;
-            ++Column)
-        {
-            for(int Row = 0;
-                Row < 4;
-                ++Row)
-            {
-                TState[Row][Column] = State[Row][Column];
-            }
+        printf("After MixColumns Round Number: %d\n", Round);
+        State = MixColumns(State);
+        PrintState(State);
 
-            State[0][Column] =
-                Mul3(TState[1][Column]) ^ Mul2(TState[0][Column]) ^ TState[2][Column] ^ TState[3][Column];
-
-            State[1][Column] =
-                Mul3(TState[2][Column]) ^ Mul2(TState[1][Column]) ^ TState[0][Column] ^ TState[3][Column];
-
-            State[2][Column] =
-                Mul3(TState[3][Column]) ^ Mul2(TState[2][Column]) ^ TState[1][Column] ^ TState[0][Column];
-
-            State[3][Column] =
-                Mul3(TState[0][Column]) ^ Mul2(TState[3][Column]) ^ TState[2][Column] ^ TState[1][Column];
-        }
+        printf("After AddRoundKey Round Number: %d\n", Round);
+        State = AddRoundKey(State, ExpandedKey, Round, Nb);
         PrintState(State);
     }
+
+    State = SubBytes(State);
+    printf("After Last SubBytes Round Number: %d\n", Round);
+    PrintState(State);
+
+    State = ShiftRows(State);
+    printf("After Last ShiftRows Round Number: %d\n", Round);
+    PrintState(State);
+
+    State = AddRoundKey(State, ExpandedKey, Round, Nb);
+    printf("After Last AddRoundKey Round Number: %d\n", Round);
+    PrintState(State);
 }
 
 void
