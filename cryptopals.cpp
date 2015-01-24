@@ -889,7 +889,6 @@ SubWord(word Word)
 void
 AES(void)
 {
-
     uint8 InputBytes[16] = {
         0x32, 0x43, 0xf6, 0xa8,
         0x88, 0x5a, 0x30, 0x8d,
@@ -897,12 +896,56 @@ AES(void)
         0xe0, 0x37, 0x07, 0x34
     };
 
-    uint8 Key[16] = {
-        0x2b, 0x7e, 0x15, 0x16,
-        0x28, 0xae, 0xd2, 0xa6,
-        0xab, 0xf7, 0x15, 0x88,
-        0x09, 0xcf, 0x4f, 0x3c
+    // uint8 Key[16] = {
+    //     0x2b, 0x7e, 0x15, 0x16,
+    //     0x28, 0xae, 0xd2, 0xa6,
+    //     0xab, 0xf7, 0x15, 0x88,
+    //     0x09, 0xcf, 0x4f, 0x3c
+    // };
+
+    // uint8 Key[24] = {
+    //     0x8e, 0x73, 0xb0, 0xf7,
+    //     0xda, 0x0e, 0x64, 0x52,
+    //     0xc8, 0x10, 0xf3, 0x2b,
+    //     0x80, 0x90, 0x79, 0xe5,
+    //     0x62, 0xf8, 0xea, 0xd2,
+    //     0x52, 0x2c, 0x6b, 0x7b
+    // };
+
+    uint8 Key[32] = {
+        0x60, 0x3d, 0xeb, 0x10,
+        0x15, 0xca, 0x71, 0xbe,
+        0x2b, 0x73, 0xae, 0xf0,
+        0x85, 0x7d, 0x77, 0x81,
+        0x1f, 0x35, 0x2c, 0x07,
+        0x3b, 0x61, 0x08, 0xd7,
+        0x2d, 0x98, 0x10, 0xa3,
+        0x09, 0x14, 0xdf, 0xf4
     };
+
+    int Nb = 4; // Number of 32-bit words in Plaintext
+
+    size_t KeySize = ArrayCount(Key);
+
+    int Nr = 0; // Number of rounds;
+    int Nk = KeySize / 4; // Number of columns
+    if(KeySize * 8 == 128)
+    {
+        Nr = 10;
+    }
+    else if(KeySize * 8 == 192)
+    {
+        Nr = 12;
+    }
+    else if(KeySize * 8 == 256)
+    {
+        Nr = 14;
+    }
+
+    assert(ArrayCount(InputBytes) * 8 == 128);
+    assert(Nb == 4);
+    assert(Nr == 10 || Nr == 12 || Nr == 14);
+    assert(Nk == 4 || Nk == 6 || Nk == 8);
 
     // NOTE(yuri): Row, Column
     uint8 State[4][4];
@@ -919,9 +962,6 @@ AES(void)
         }
     }
 
-    int Nk = 4; // Number of columns
-    int Nb = 4; // Number of 32-bit words in Cipher Key
-    int Nr = 10; // Number of rounds
     PrintState(State);
 
     int ExpandedKeyLength = Nb * (Nr + 1);
@@ -965,6 +1005,11 @@ AES(void)
 
             Temp.Word ^= (Rcon[KeyExpansionIndex / Nk] << 24);
             printf("After XOR with Rcon: %08x\n", Temp.Word);
+        }
+        else if(Nk > 6 && (KeyExpansionIndex % Nk) == 4)
+        {
+            Temp = SubWord(Temp);
+            printf("After SubWord: %08x\n", Temp.Word);
         }
 
         ExpandedKey[KeyExpansionIndex].Word = ExpandedKey[KeyExpansionIndex - Nk].Word ^ Temp.Word;
