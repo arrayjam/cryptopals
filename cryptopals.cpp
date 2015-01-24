@@ -837,10 +837,9 @@ PrintState(uint8 State[4][4])
         {
             printf("%02x\t", State[Row][Column]);
         }
-            printf("\n");
+        printf("\n");
     }
-
-
+    printf("\n");
 }
 
 union word
@@ -852,8 +851,8 @@ union word
     uint8 Byte[4];
 };
 
-word
-SubWord(word Word)
+uint8
+SubByte(uint8 Byte)
 {
     uint8 Sbox[16][16] =
     {
@@ -874,17 +873,49 @@ SubWord(word Word)
         0xE1, 0xF8, 0x98, 0x11, 0x69, 0xD9, 0x8E, 0x94, 0x9B, 0x1E, 0x87, 0xE9, 0xCE, 0x55, 0x28, 0xDF,
         0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16
     };
+    uint8 Result = 0;
+
+    Result = Sbox[Byte >> 4][Byte & 0x0f];
+
+    return Result;
+}
+
+uint8 *
+ShiftRow(uint8 Row[4], int Shift)
+{
+    word Word = {0};
+    for(int Column = 0;
+        Column < 4;
+        ++Column)
+    {
+        Word.Byte[3 - Column] = Row[Column];
+    }
+
+    Word.Word = ((Word.Word << (Shift * 8)) |
+                 (Word.Word >> (32 - (Shift * 8))));
+
+    for(int Column = 0;
+        Column < 4;
+        ++Column)
+    {
+        Row[Column] = Word.Byte[3 - Column];
+    }
+
+    return Row;
+}
+
+word
+SubWord(word Word)
+{
     for(int ByteIndex = 0;
         ByteIndex < 4;
         ++ByteIndex)
     {
-        uint8 Byte = Word.Byte[ByteIndex];
-        Word.Byte[ByteIndex] = Sbox[Byte >> 4][Byte & 0x0f];
+        Word.Byte[ByteIndex] = SubByte(Word.Byte[ByteIndex]);
     }
 
     return Word;
 }
-
 
 void
 AES(void)
@@ -896,12 +927,12 @@ AES(void)
         0xe0, 0x37, 0x07, 0x34
     };
 
-    // uint8 Key[16] = {
-    //     0x2b, 0x7e, 0x15, 0x16,
-    //     0x28, 0xae, 0xd2, 0xa6,
-    //     0xab, 0xf7, 0x15, 0x88,
-    //     0x09, 0xcf, 0x4f, 0x3c
-    // };
+    uint8 Key[16] = {
+        0x2b, 0x7e, 0x15, 0x16,
+        0x28, 0xae, 0xd2, 0xa6,
+        0xab, 0xf7, 0x15, 0x88,
+        0x09, 0xcf, 0x4f, 0x3c
+    };
 
     // uint8 Key[24] = {
     //     0x8e, 0x73, 0xb0, 0xf7,
@@ -912,16 +943,16 @@ AES(void)
     //     0x52, 0x2c, 0x6b, 0x7b
     // };
 
-    uint8 Key[32] = {
-        0x60, 0x3d, 0xeb, 0x10,
-        0x15, 0xca, 0x71, 0xbe,
-        0x2b, 0x73, 0xae, 0xf0,
-        0x85, 0x7d, 0x77, 0x81,
-        0x1f, 0x35, 0x2c, 0x07,
-        0x3b, 0x61, 0x08, 0xd7,
-        0x2d, 0x98, 0x10, 0xa3,
-        0x09, 0x14, 0xdf, 0xf4
-    };
+    // uint8 Key[32] = {
+    //     0x60, 0x3d, 0xeb, 0x10,
+    //     0x15, 0xca, 0x71, 0xbe,
+    //     0x2b, 0x73, 0xae, 0xf0,
+    //     0x85, 0x7d, 0x77, 0x81,
+    //     0x1f, 0x35, 0x2c, 0x07,
+    //     0x3b, 0x61, 0x08, 0xd7,
+    //     0x2d, 0x98, 0x10, 0xa3,
+    //     0x09, 0x14, 0xdf, 0xf4
+    // };
 
     int Nb = 4; // Number of 32-bit words in Plaintext
 
@@ -1023,6 +1054,63 @@ AES(void)
         ++ExpandedIndex)
     {
         printf("%08x\n", ExpandedKey[ExpandedIndex].Word);
+    }
+
+    PrintState(State);
+
+    printf("Initial AddRoundKey: START\n");
+    int Round = 0;
+    for(int Column = 0;
+        Column < 4;
+        ++Column)
+    {
+        for(int Row = 0;
+            Row < 4;
+            ++Row)
+        {
+
+            uint8 OldState = State[Row][Column];
+            uint8 XORByte = ExpandedKey[Column].Byte[3 - Row];
+            uint8 NewState = OldState ^ XORByte;
+            // printf("XORByte Index: %d, Row: %d\n", ExpandedKeyIndex + Column, Row);
+
+            printf("OldState: %02x\tXORByte: %02x\tNewState: %02x\n", OldState, XORByte, NewState);
+            State[Row][Column] = NewState;
+        }
+    }
+
+    printf("Initial AddRoundKey: DONE\n");
+    PrintState(State);
+
+    int ExpandedKeyIndex;
+    for(Round = 1;
+        Round < 2; //Nr - 1;
+        ++Round)
+    {
+        ExpandedKeyIndex = Round * Nb;
+        for(int Row = 0;
+            Row < 4;
+            ++Row)
+        {
+            for(int Column = 0;
+                Column < 4;
+                ++Column)
+            {
+                State[Row][Column] = SubByte(State[Row][Column]);
+            }
+        }
+
+        printf("After SubBytes Round Number: %d\n", Round);
+        PrintState(State);
+
+        for(int Row = 0;
+            Row < 4;
+            ++Row)
+        {
+            ShiftRow(State[Row], Row);
+        }
+        printf("After ShiftRow Round Number: %d\n", Round);
+        PrintState(State);
     }
 }
 
