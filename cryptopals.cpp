@@ -44,6 +44,18 @@ StringsAreEqual(uint8 *Str1, uint8 *Str2)
     return 1;
 }
 
+uint32
+Uint8ToUint32(uint8 *Bytes)
+{
+    uint32 Result;
+
+    Result = ((Bytes[0] << 24) |
+              (Bytes[1] << 16) |
+              (Bytes[2] <<  8) |
+              (Bytes[3] <<  0));
+
+    return Result;
+}
 
 byte_buffer
 CreateByteBuffer(size_t ByteBufferSize)
@@ -850,23 +862,11 @@ AverageEditDistance(byte_buffer ByteBuffer, int KeySize)
     return Result;
 }
 
-union word
-{
-    struct
-    {
-        uint32 Word;
-    };
-    uint8 Byte[4];
-};
-
-struct state
-{
-    uint8 Byte[4][4];
-};
-
 void
-PrintState(state State)
+PrintState(byte_buffer State)
 {
+    uint8 *BufferPointer = State.Buffer;
+
     for(int Row = 0;
         Row < 4;
         ++Row)
@@ -875,9 +875,29 @@ PrintState(state State)
             Column < 4;
             ++Column)
         {
-            printf("%02x\t", State.Byte[Row][Column]);
+            printf("%02x\t", *BufferPointer);
+            BufferPointer++;
         }
         printf("\n");
+    }
+    printf("\n");
+}
+
+void
+PrintShortState(byte_buffer State)
+{
+    uint8 *BufferPointer = State.Buffer;
+    for(int Column = 0;
+        Column < 4;
+        ++Column)
+    {
+        for(int Row = 0;
+            Row < 4;
+            ++Row)
+        {
+            printf("%02x", *BufferPointer);
+            BufferPointer++;
+        }
     }
     printf("\n");
 }
@@ -892,38 +912,16 @@ SubByte(uint8 Byte)
     return Result;
 }
 
-uint8 *
-ShiftRow(uint8 Row[4], int Shift)
+uint32
+SubWord(uint32 Word)
 {
-    word Word = {0};
-    for(int Column = 0;
-        Column < 4;
-        ++Column)
-    {
-        Word.Byte[3 - Column] = Row[Column];
-    }
-
-    Word.Word = ((Word.Word << (Shift * 8)) |
-                 (Word.Word >> (32 - (Shift * 8))));
-
-    for(int Column = 0;
-        Column < 4;
-        ++Column)
-    {
-        Row[Column] = Word.Byte[3 - Column];
-    }
-
-    return Row;
-}
-
-word
-SubWord(word Word)
-{
+    uint8 *BytePointer = (uint8 *)&Word;
     for(int ByteIndex = 0;
         ByteIndex < 4;
         ++ByteIndex)
     {
-        Word.Byte[ByteIndex] = SubByte(Word.Byte[ByteIndex]);
+        *BytePointer = SubByte(*BytePointer);
+        BytePointer++;
     }
 
     return Word;
@@ -965,76 +963,78 @@ GMul(uint8 Byte, int Coefficient)
     return Result;
 }
 
-state
-AddRoundKey(state State, word *ExpandedKey, int Round, int Nb)
+byte_buffer
+AddRoundKey(byte_buffer State, uint32 *ExpandedKey, int Round, int Nb)
 {
     int ExpandedKeyIndex = Round * Nb;
-    for(int Column = 0;
-        Column < 4;
-        ++Column)
+    uint8 *StatePointer = State.Buffer;
+    uint32 *ExpandedKeyWord = ExpandedKey + ExpandedKeyIndex;
+    for(int Row = 0;
+        Row < 4;
+        ++Row)
     {
-        for(int Row = 0;
-            Row < 4;
-            ++Row)
+        for(int Column = 0;
+            Column < 4;
+            ++Column)
         {
-
-            uint8 OldState = State.Byte[Row][Column];
-            uint8 XORByte = ExpandedKey[ExpandedKeyIndex + Column].Byte[3 - Row];
+            uint8 OldState = State.Buffer[(Column * 4) + Row];
+            uint8 XORByte = *(((uint8 *)ExpandedKeyWord) + (3 - Column));
             uint8 NewState = OldState ^ XORByte;
             // printf("XORByte Index: %d, Row: %d\n", ExpandedKeyIndex + Column, Row);
-
             printf("OldState: %02x\tXORByte: %02x\tNewState: %02x\n", OldState, XORByte, NewState);
-            State.Byte[Row][Column] = NewState;
+            // printf("%02x", XORByte);
+            State.Buffer[(Column * 4) + Row] = NewState;
         }
+        ExpandedKeyWord++;
+        printf("\n");
     }
+    printf("\n");
     return State;
 }
 
-state
-SubBytes(state State)
+byte_buffer
+SubBytes(byte_buffer State)
 {
+    for(int StateIndex = 0;
+        StateIndex < State.Size;
+        ++StateIndex)
+    {
+        State.Buffer[StateIndex] = SubByte(State.Buffer[StateIndex]);
+    }
+
+    return State;
+}
+
+byte_buffer
+ShiftRowsOperation(byte_buffer State, flag Operation)
+{
+    uint8 *RowPointer = State.Buffer;
     for(int Row = 0;
         Row < 4;
         ++Row)
     {
-        for(int Column = 0;
-            Column < 4;
-            ++Column)
+        // NOTE(yuri): Convert 4 uint8 to uint32
+        uint32 Word = Uint8ToUint32(RowPointer);
+
+        // NOTE(yuri): Peform rotation
+        if(Operation == ENCRYPT)
         {
-            State.Byte[Row][Column] = SubByte(State.Byte[Row][Column]);
+            Word = ((Word << (Row * 8)) |
+                    (Word >> (32 - (Row * 8))));
         }
-    }
-
-    return State;
-}
-
-state
-ShiftRows(state State)
-{
-    for(int Row = 0;
-        Row < 4;
-        ++Row)
-    {
-        ShiftRow(State.Byte[Row], Row);
-    }
-
-    return State;
-}
-
-state
-InputToState(byte_buffer Input)
-{
-    state State = {};
-
-    for(int Row = 0;
-        Row < 4;
-        ++Row)
-    {
-        for(int Column = 0;
-            Column < 4;
-            ++Column)
+        else if(Operation == DECRYPT)
         {
-            State.Byte[Row][Column] = Input.Buffer[Row + (4 * Column)];
+            Word = ((Word >> (Row * 8)) |
+                    (Word << (32 - (Row * 8))));
+        }
+
+        for(int ByteIndex = 3;
+            ByteIndex >= 0;
+            --ByteIndex)
+        {
+            // NOTE(yuri): Convert back to 4 uint8
+            *RowPointer = (uint8)(Word >> (ByteIndex * 8));
+            RowPointer++;
         }
     }
 
@@ -1042,9 +1042,24 @@ InputToState(byte_buffer Input)
 }
 
 byte_buffer
-StateToOutput(state State)
+ShiftRows(byte_buffer State)
 {
-    byte_buffer Result = CreateByteBuffer(16);
+    ShiftRowsOperation(State, ENCRYPT);
+    return State;
+}
+
+byte_buffer
+InvShiftRows(byte_buffer State)
+{
+    ShiftRowsOperation(State, DECRYPT);
+    return State;
+}
+
+byte_buffer
+InputToState(byte_buffer Input)
+{
+    byte_buffer State = CreateByteBuffer(16);
+    int InputIndex = 0;
 
     for(int Row = 0;
         Row < 4;
@@ -1054,22 +1069,47 @@ StateToOutput(state State)
             Column < 4;
             ++Column)
         {
-            Result.Buffer[Row + (4*Column)] = State.Byte[Row][Column];
+            // printf("Input Index: %d, State Index: %d\n", InputIndex, (Column * 4) + Row);
+            State.Buffer[(Column * 4) + Row] = Input.Buffer[InputIndex];
+            InputIndex++;
         }
     }
+
+    return State;
+}
+
+byte_buffer
+StateToOutput(byte_buffer State)
+{
+    byte_buffer Result = CreateByteBuffer(16);
+    int OutputIndex = 0;
+
+    for(int Row = 0;
+        Row < 4;
+        ++Row)
+    {
+        for(int Column = 0;
+            Column < 4;
+            ++Column)
+        {
+            Result.Buffer[OutputIndex] = State.Buffer[(Column * 4) + Row];
+            OutputIndex++;
+        }
+    }
+    Print(&Result, BYTE_BUFFER, AS_DUMP);
 
     return Result;
 }
 
-word *
+uint32 *
 KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
 {
     int ExpandedKeyLength = Nb * (Nr + 1);
     printf("ExpandedKeyLength: %d\n", ExpandedKeyLength);
 
-    word *ExpandedKey = (word *)malloc(sizeof(word) * (Nb * (Nr + 1)));
+    uint32 *ExpandedKey = (uint32 *)malloc(sizeof(uint32) * (Nb * (Nr + 1)));
 
-    word Temp;
+    uint32 Temp;
 
     int KeyExpansionIndex = 0;
     uint8 Rcon[] = {0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
@@ -1077,11 +1117,8 @@ KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
     while(KeyExpansionIndex < Nk)
     {
         printf("KeyExpansionIndex: %d\n", KeyExpansionIndex);
-        ExpandedKey[KeyExpansionIndex].Word = ((Key.Buffer[(4*KeyExpansionIndex) + 0] << 24) |
-                                               (Key.Buffer[(4*KeyExpansionIndex) + 1] << 16) |
-                                               (Key.Buffer[(4*KeyExpansionIndex) + 2] << 8) |
-                                               (Key.Buffer[(4*KeyExpansionIndex) + 3] << 0));
-        printf("ExpandedKey word: %08x\n", ExpandedKey[KeyExpansionIndex].Word);
+        ExpandedKey[KeyExpansionIndex] = Uint8ToUint32(&Key.Buffer[4*KeyExpansionIndex]);
+        printf("ExpandedKey word: %08x\n", ExpandedKey[KeyExpansionIndex]);
         KeyExpansionIndex++;
     }
 
@@ -1090,30 +1127,30 @@ KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
     while(KeyExpansionIndex < ExpandedKeyLength)
     {
         printf("i: %d\n", KeyExpansionIndex);
-        Temp = ExpandedKey[KeyExpansionIndex - 1];
-        printf("Temp: %08x\n", Temp.Word);
+        Temp = *(ExpandedKey + KeyExpansionIndex - 1);
+        printf("Temp: %08x\n", Temp);
 
         if(KeyExpansionIndex % Nk == 0)
         {
-            Temp.Word = (Temp.Word << 8) | (Temp.Word >> 24);
-            printf("After RotWord: %08x\n", Temp.Word);
+            Temp = (Temp << 8) | (Temp >> 24);
+            printf("After RotWord: %08x\n", Temp);
 
             Temp = SubWord(Temp);
-            printf("After SubWord: %08x\n", Temp.Word);
+            printf("After SubWord: %08x\n", Temp);
 
             printf("Rcon[i/Nk]: %08x\n", (Rcon[KeyExpansionIndex / Nk] << 24));
 
-            Temp.Word ^= (Rcon[KeyExpansionIndex / Nk] << 24);
-            printf("After XOR with Rcon: %08x\n", Temp.Word);
+            Temp ^= (Rcon[KeyExpansionIndex / Nk] << 24);
+            printf("After XOR with Rcon: %08x\n", Temp);
         }
         else if(Nk > 6 && (KeyExpansionIndex % Nk) == 4)
         {
             Temp = SubWord(Temp);
-            printf("After SubWord: %08x\n", Temp.Word);
+            printf("After SubWord: %08x\n", Temp);
         }
 
-        ExpandedKey[KeyExpansionIndex].Word = ExpandedKey[KeyExpansionIndex - Nk].Word ^ Temp.Word;
-        printf("After end XOR: %08x\n", ExpandedKey[KeyExpansionIndex].Word);
+        *(ExpandedKey + KeyExpansionIndex) = ExpandedKey[KeyExpansionIndex - Nk] ^ Temp;
+        printf("After end XOR: %08x\n", *(ExpandedKey + KeyExpansionIndex));
         KeyExpansionIndex++;
         printf("\n\n");
     }
@@ -1122,7 +1159,7 @@ KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
         ExpandedIndex < ExpandedKeyLength;
         ++ExpandedIndex)
     {
-        printf("%08x, index: %d\n", ExpandedKey[ExpandedIndex].Word, ExpandedIndex);
+        printf("%08x, index: %d\n", ExpandedKey[ExpandedIndex], ExpandedIndex);
         if((ExpandedIndex + 1) % 4 == 0)
         {
             printf("\n");
@@ -1132,75 +1169,45 @@ KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
     return ExpandedKey;
 }
 
-state
-MixColumns(state State)
+byte_buffer
+MixColumns(byte_buffer State)
 {
-    state TState;
+    byte_buffer TState = CopyByteBuffer(State);
     for(int Column = 0;
         Column < 4;
         ++Column)
     {
-        TState = State;
+        State.Buffer[(0 * 4) + Column] =
+            GMul(TState.Buffer[(1 * 4) + Column], 3) ^
+            GMul(TState.Buffer[(0 * 4) + Column], 2) ^
+            GMul(TState.Buffer[(3 * 4) + Column], 1) ^
+            GMul(TState.Buffer[(2 * 4) + Column], 1);
 
-        State.Byte[0][Column] =
-            GMul(TState.Byte[1][Column], 3) ^
-            GMul(TState.Byte[0][Column], 2) ^
-            GMul(TState.Byte[2][Column], 1) ^
-            GMul(TState.Byte[3][Column], 1);
+        State.Buffer[(1 * 4) + Column] =
+            GMul(TState.Buffer[(2 * 4) + Column], 3) ^
+            GMul(TState.Buffer[(1 * 4) + Column], 2) ^
+            GMul(TState.Buffer[(0 * 4) + Column], 1) ^
+            GMul(TState.Buffer[(3 * 4) + Column], 1);
 
-        State.Byte[1][Column] =
-            GMul(TState.Byte[2][Column], 3) ^
-            GMul(TState.Byte[1][Column], 2) ^
-            GMul(TState.Byte[0][Column], 1) ^
-            GMul(TState.Byte[3][Column], 1);
+        State.Buffer[(2 * 4) + Column] =
+            GMul(TState.Buffer[(3 * 4) + Column], 3) ^
+            GMul(TState.Buffer[(2 * 4) + Column], 2) ^
+            GMul(TState.Buffer[(1 * 4) + Column], 1) ^
+            GMul(TState.Buffer[(0 * 4) + Column], 1);
 
-        State.Byte[2][Column] =
-            GMul(TState.Byte[3][Column], 3) ^
-            GMul(TState.Byte[2][Column], 2) ^
-            GMul(TState.Byte[1][Column], 1) ^
-            GMul(TState.Byte[0][Column], 1);
-
-        State.Byte[3][Column] =
-            GMul(TState.Byte[0][Column], 3) ^
-            GMul(TState.Byte[3][Column], 2) ^
-            GMul(TState.Byte[2][Column], 1) ^
-            GMul(TState.Byte[1][Column], 1);
+        State.Buffer[(3 * 4) + Column] =
+            GMul(TState.Buffer[(0 * 4) + Column], 3) ^
+            GMul(TState.Buffer[(3 * 4) + Column], 2) ^
+            GMul(TState.Buffer[(2 * 4) + Column], 1) ^
+            GMul(TState.Buffer[(1 * 4) + Column], 1);
     }
 
     return State;
 }
 
 byte_buffer
-AES(byte_buffer Input, byte_buffer Key)
+AES(byte_buffer Input, byte_buffer Key, flag Operation)
 {
-
-    // uint8 Key[16] = {
-    //     0x2b, 0x7e, 0x15, 0x16,
-    //     0x28, 0xae, 0xd2, 0xa6,
-    //     0xab, 0xf7, 0x15, 0x88,
-    //     0x09, 0xcf, 0x4f, 0x3c
-    // };
-
-    // uint8 Key[24] = {
-    //     0x8e, 0x73, 0xb0, 0xf7,
-    //     0xda, 0x0e, 0x64, 0x52,
-    //     0xc8, 0x10, 0xf3, 0x2b,
-    //     0x80, 0x90, 0x79, 0xe5,
-    //     0x62, 0xf8, 0xea, 0xd2,
-    //     0x52, 0x2c, 0x6b, 0x7b
-    // };
-
-    // uint8 Key[32] = {
-    //     0x60, 0x3d, 0xeb, 0x10,
-    //     0x15, 0xca, 0x71, 0xbe,
-    //     0x2b, 0x73, 0xae, 0xf0,
-    //     0x85, 0x7d, 0x77, 0x81,
-    //     0x1f, 0x35, 0x2c, 0x07,
-    //     0x3b, 0x61, 0x08, 0xd7,
-    //     0x2d, 0x98, 0x10, 0xa3,
-    //     0x09, 0x14, 0xdf, 0xf4
-    // };
-
     int Nb = 4; // Number of 32-bit words in Plaintext
 
     int Nr = 0; // Number of rounds;
@@ -1222,105 +1229,171 @@ AES(byte_buffer Input, byte_buffer Key)
     assert(Nb == 4);
     assert(Nr == 10 || Nr == 12 || Nr == 14);
     assert(Nk == 4 || Nk == 6 || Nk == 8);
+    assert(Operation == ENCRYPT || Operation == DECRYPT);
 
     // NOTE(yuri): Row, Column
-    state State = InputToState(Input);
+    byte_buffer State = InputToState(Input);
+
+    uint32 *ExpandedKey = KeyExpansion(Key, Nk, Nb, Nr);
+
+    printf("Start State\n");
     PrintState(State);
 
-    word *ExpandedKey = KeyExpansion(Key, Nk, Nb, Nr);
-
-    int Round = 0;
-
-    State = AddRoundKey(State, ExpandedKey, Round, Nb);
-    printf("Initial AddRoundKey: DONE\n");
-    PrintState(State);
-
-    int ExpandedKeyIndex;
-    for(Round = 1;
-        Round <= Nr - 1;
-        ++Round)
+    if(Operation == ENCRYPT)
     {
-        ExpandedKeyIndex = Round * Nb;
+        printf("Encrypting\n");
+        int Round = 0;
+
+        State = AddRoundKey(State, ExpandedKey, Round, Nb);
+        printf("Initial AddRoundKey\n");
+        PrintState(State);
+
+        int ExpandedKeyIndex;
+        for(Round = 1;
+            Round <= Nr - 1;
+            ++Round)
+        {
+            ExpandedKeyIndex = Round * Nb;
+
+            State = SubBytes(State);
+            printf("After SubBytes Round Number: %d\n", Round);
+            PrintState(State);
+
+            State = ShiftRows(State);
+            printf("After ShiftRow Round Number: %d\n", Round);
+            PrintState(State);
+
+            printf("After MixColumns Round Number: %d\n", Round);
+            State = MixColumns(State);
+            PrintState(State);
+
+            printf("After AddRoundKey Round Number: %d\n", Round);
+            State = AddRoundKey(State, ExpandedKey, Round, Nb);
+            PrintState(State);
+        }
 
         State = SubBytes(State);
-        printf("After SubBytes Round Number: %d\n", Round);
+        printf("After Last SubBytes Round Number: %d\n", Round);
         PrintState(State);
 
         State = ShiftRows(State);
-        printf("After ShiftRow Round Number: %d\n", Round);
+        printf("After Last ShiftRows Round Number: %d\n", Round);
         PrintState(State);
 
-        printf("After MixColumns Round Number: %d\n", Round);
-        State = MixColumns(State);
-        PrintState(State);
-
-        printf("After AddRoundKey Round Number: %d\n", Round);
         State = AddRoundKey(State, ExpandedKey, Round, Nb);
+        printf("After Last AddRoundKey Round Number: %d\n", Round);
         PrintState(State);
     }
+    else if(Operation == DECRYPT)
+    {
+        printf("Decrypting\n");
 
-    State = SubBytes(State);
-    printf("After Last SubBytes Round Number: %d\n", Round);
-    PrintState(State);
+        int Round = Nr;
 
-    State = ShiftRows(State);
-    printf("After Last ShiftRows Round Number: %d\n", Round);
-    PrintState(State);
+        printf("round[%2d].iinput   ", Nr - Round);
+        PrintShortState(State);
+        printf("round[%2d].ik_sch   ", Nr - Round);
+        State = AddRoundKey(State, ExpandedKey, Round, Nb);
+        printf("round[%2d].iinput   ", Nr - Round);
+        PrintShortState(State);
 
-    State = AddRoundKey(State, ExpandedKey, Round, Nb);
-    printf("After Last AddRoundKey Round Number: %d\n", Round);
-    PrintState(State);
+
+        for(Round = Nr - 1;
+            Round > 0;
+            --Round)
+        {
+            State = InvShiftRows(State);
+            printf("round[%2d].is_row   ", Nr - Round);
+            PrintShortState(State);
+
+
+
+
+        }
+    }
 
     return StateToOutput(State);
 }
 
-
 void
-AESTest(const char *PlainTextString, const char *KeyString, const char *ExpectedCipherTextString)
+AESEncryptionTest(const char *PlainTextString, const char *KeyString, const char *ExpectedCipherTextString)
 {
     byte_buffer PlainText = DecodeHex((uint8 *)PlainTextString);
     byte_buffer Key = DecodeHex((uint8 *)KeyString);
-    byte_buffer CipherText = AES(PlainText, Key);
+    byte_buffer CipherText = AES(PlainText, Key, ENCRYPT);
 
     byte_buffer ExpectedCipherText = DecodeHex((uint8 *)ExpectedCipherTextString);
     assert(ByteBuffersEqual(CipherText, ExpectedCipherText));
 }
 
 void
-AES128Test(void)
+AESDecryptionTest(const char *CipherTextString, const char *KeyString, const char *ExpectedPlainTextString)
 {
-    AESTest("00112233445566778899aabbccddeeff",
-            "000102030405060708090a0b0c0d0e0f",
-            "69c4e0d86a7b0430d8cdb78070b4c55a");
-    printf("AES-128 test passed!\n");
+    byte_buffer CipherText = DecodeHex((uint8 *)CipherTextString);
+    byte_buffer Key = DecodeHex((uint8 *)KeyString);
+    byte_buffer PlainText = AES(CipherText, Key, DECRYPT);
+
+    byte_buffer ExpectedPlainText= DecodeHex((uint8 *)ExpectedPlainTextString);
+    assert(ByteBuffersEqual(PlainText, ExpectedPlainText));
+}
+
+
+void
+AES128EncryptionTest(void)
+{
+    AESEncryptionTest("00112233445566778899aabbccddeeff",
+                      "000102030405060708090a0b0c0d0e0f",
+                      "69c4e0d86a7b0430d8cdb78070b4c55a");
+    printf("AES-128 Encryption test passed!\n");
 }
 
 void
-AES192Test(void)
+AES128EncryptionTestAppendixB(void)
 {
-    AESTest("00112233445566778899aabbccddeeff",
-            "000102030405060708090a0b0c0d0e0f1011121314151617",
-            "dda97ca4864cdfe06eaf70a0ec0d7191");
-    printf("AES-192 test passed!\n");
+    AESEncryptionTest("3243f6a8885a308d313198a2e0370734",
+                      "2b7e151628aed2a6abf7158809cf4f3c",
+                      "3925841d02dc09fbdc118597196a0b32");
+    printf("AES-128 Encryption (Appendix B) test passed!\n");
+}
+
+
+void
+AES192EncryptionTest(void)
+{
+    AESEncryptionTest("00112233445566778899aabbccddeeff",
+                      "000102030405060708090a0b0c0d0e0f1011121314151617",
+                      "dda97ca4864cdfe06eaf70a0ec0d7191");
+    printf("AES-192 Encryption test passed!\n");
 }
 
 void
-AES256Test(void)
+AES256EncryptionTest(void)
 {
-    AESTest("00112233445566778899aabbccddeeff",
-            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
-            "8ea2b7ca516745bfeafc49904b496089");
-    printf("AES-256 test passed!\n");
+    AESEncryptionTest("00112233445566778899aabbccddeeff",
+                      "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+                      "8ea2b7ca516745bfeafc49904b496089");
+    printf("AES-256 Encryption test passed!\n");
+}
+
+void
+AES128DecryptionTest(void)
+{
+    AESDecryptionTest("69c4e0d86a7b0430d8cdb78070b4c55a",
+                      "000102030405060708090a0b0c0d0e0f",
+                      "00112233445566778899aabbccddeeff");
+    printf("AES-128 Decryption test passed!\n");
 }
 
 
 void
 AESAllTests(void)
 {
-    AES128Test();
-    AES192Test();
-    AES256Test();
+    AES128EncryptionTestAppendixB();
+    // AES192EncryptionTest();
+    // AES256EncryptionTest();
+    // AES128DecryptionTest();
 }
+
 void
 Initialize(void)
 {

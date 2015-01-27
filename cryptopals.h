@@ -42,6 +42,10 @@ typedef uint16 flag;
 #define AS_DUMP        (1 << 4)
 #define AS_BASE64      (1 << 5)
 
+// NOTE(yuri): AES Options
+#define ENCRYPT        0
+#define DECRYPT        1
+
 void Print(void *Value, flag Type, flag PrintOptions);
 
 struct byte_buffer
