@@ -886,7 +886,6 @@ PrintState(byte_buffer State)
 void
 PrintShortState(byte_buffer State)
 {
-    uint8 *BufferPointer = State.Buffer;
     for(int Column = 0;
         Column < 4;
         ++Column)
@@ -895,36 +894,21 @@ PrintShortState(byte_buffer State)
             Row < 4;
             ++Row)
         {
-            printf("%02x", *BufferPointer);
-            BufferPointer++;
+            printf("%02x", State.Buffer[Row * 4 + Column]);
         }
     }
     printf("\n");
 }
 
-uint8
-SubByte(uint8 Byte)
+void
+PrintExpandedKey(uint32 *ExpandedKey, int Round, int Nb)
 {
-    uint8 Result = 0;
-
-    Result = ForwardSBox[Byte >> 4][Byte & 0x0f];
-
-    return Result;
-}
-
-uint32
-SubWord(uint32 Word)
-{
-    uint8 *BytePointer = (uint8 *)&Word;
-    for(int ByteIndex = 0;
-        ByteIndex < 4;
-        ++ByteIndex)
-    {
-        *BytePointer = SubByte(*BytePointer);
-        BytePointer++;
-    }
-
-    return Word;
+    int ExpandedKeyIndex = Round * Nb;
+    printf("%08x%08x%08x%08x\n",
+           ExpandedKey[ExpandedKeyIndex + 0],
+           ExpandedKey[ExpandedKeyIndex + 1],
+           ExpandedKey[ExpandedKeyIndex + 2],
+           ExpandedKey[ExpandedKeyIndex + 3]);
 }
 
 uint8
@@ -981,28 +965,73 @@ AddRoundKey(byte_buffer State, uint32 *ExpandedKey, int Round, int Nb)
             uint8 XORByte = *(((uint8 *)ExpandedKeyWord) + (3 - Column));
             uint8 NewState = OldState ^ XORByte;
             // printf("XORByte Index: %d, Row: %d\n", ExpandedKeyIndex + Column, Row);
-            printf("OldState: %02x\tXORByte: %02x\tNewState: %02x\n", OldState, XORByte, NewState);
+            // printf("OldState: %02x\tXORByte: %02x\tNewState: %02x\n", OldState, XORByte, NewState);
             // printf("%02x", XORByte);
             State.Buffer[(Column * 4) + Row] = NewState;
         }
         ExpandedKeyWord++;
-        printf("\n");
+        // printf("\n");
     }
-    printf("\n");
+    // printf("\n");
+    return State;
+}
+
+uint8
+SubByte(uint8 Byte, flag Operation)
+{
+    uint8 Result = 0;
+
+    if(Operation == ENCRYPT)
+    {
+        Result = ForwardSBox[Byte >> 4][Byte & 0x0f];
+    }
+    else if(Operation == DECRYPT)
+    {
+        Result = ReverseSBox[Byte >> 4][Byte & 0x0f];
+    }
+
+    return Result;
+}
+
+uint32
+SubWord(uint32 Word)
+{
+    uint8 *BytePointer = (uint8 *)&Word;
+    for(int ByteIndex = 0;
+        ByteIndex < 4;
+        ++ByteIndex)
+    {
+        *BytePointer = SubByte(*BytePointer, ENCRYPT);
+        BytePointer++;
+    }
+
+    return Word;
+}
+
+
+byte_buffer
+SubBytesOperation(byte_buffer State, flag Operation)
+{
+    for(int StateIndex = 0;
+        StateIndex < State.Size;
+        ++StateIndex)
+    {
+        State.Buffer[StateIndex] = SubByte(State.Buffer[StateIndex], Operation);
+    }
+
     return State;
 }
 
 byte_buffer
 SubBytes(byte_buffer State)
 {
-    for(int StateIndex = 0;
-        StateIndex < State.Size;
-        ++StateIndex)
-    {
-        State.Buffer[StateIndex] = SubByte(State.Buffer[StateIndex]);
-    }
+    return SubBytesOperation(State, ENCRYPT);
+}
 
-    return State;
+byte_buffer
+InvSubBytes(byte_buffer State)
+{
+    return SubBytesOperation(State, DECRYPT);
 }
 
 byte_buffer
@@ -1096,7 +1125,6 @@ StateToOutput(byte_buffer State)
             OutputIndex++;
         }
     }
-    Print(&Result, BYTE_BUFFER, AS_DUMP);
 
     return Result;
 }
@@ -1105,7 +1133,7 @@ uint32 *
 KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
 {
     int ExpandedKeyLength = Nb * (Nr + 1);
-    printf("ExpandedKeyLength: %d\n", ExpandedKeyLength);
+    // printf("ExpandedKeyLength: %d\n", ExpandedKeyLength);
 
     uint32 *ExpandedKey = (uint32 *)malloc(sizeof(uint32) * (Nb * (Nr + 1)));
 
@@ -1116,9 +1144,9 @@ KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
 
     while(KeyExpansionIndex < Nk)
     {
-        printf("KeyExpansionIndex: %d\n", KeyExpansionIndex);
+        // printf("KeyExpansionIndex: %d\n", KeyExpansionIndex);
         ExpandedKey[KeyExpansionIndex] = Uint8ToUint32(&Key.Buffer[4*KeyExpansionIndex]);
-        printf("ExpandedKey word: %08x\n", ExpandedKey[KeyExpansionIndex]);
+        // printf("ExpandedKey word: %08x\n", ExpandedKey[KeyExpansionIndex]);
         KeyExpansionIndex++;
     }
 
@@ -1126,44 +1154,40 @@ KeyExpansion(byte_buffer Key, int Nk, int Nb, int Nr)
 
     while(KeyExpansionIndex < ExpandedKeyLength)
     {
-        printf("i: %d\n", KeyExpansionIndex);
+        // printf("i: %d\n", KeyExpansionIndex);
         Temp = *(ExpandedKey + KeyExpansionIndex - 1);
-        printf("Temp: %08x\n", Temp);
+        // printf("Temp: %08x\n", Temp);
 
         if(KeyExpansionIndex % Nk == 0)
         {
             Temp = (Temp << 8) | (Temp >> 24);
-            printf("After RotWord: %08x\n", Temp);
+            // printf("After RotWord: %08x\n", Temp);
 
             Temp = SubWord(Temp);
-            printf("After SubWord: %08x\n", Temp);
+            // printf("After SubWord: %08x\n", Temp);
 
-            printf("Rcon[i/Nk]: %08x\n", (Rcon[KeyExpansionIndex / Nk] << 24));
+            // printf("Rcon[i/Nk]: %08x\n", (Rcon[KeyExpansionIndex / Nk] << 24));
 
             Temp ^= (Rcon[KeyExpansionIndex / Nk] << 24);
-            printf("After XOR with Rcon: %08x\n", Temp);
+            // printf("After XOR with Rcon: %08x\n", Temp);
         }
         else if(Nk > 6 && (KeyExpansionIndex % Nk) == 4)
         {
             Temp = SubWord(Temp);
-            printf("After SubWord: %08x\n", Temp);
+            // printf("After SubWord: %08x\n", Temp);
         }
 
         *(ExpandedKey + KeyExpansionIndex) = ExpandedKey[KeyExpansionIndex - Nk] ^ Temp;
-        printf("After end XOR: %08x\n", *(ExpandedKey + KeyExpansionIndex));
+        // printf("After end XOR: %08x\n", *(ExpandedKey + KeyExpansionIndex));
         KeyExpansionIndex++;
-        printf("\n\n");
+        // printf("\n\n");
     }
 
-    for(int ExpandedIndex = 0;
-        ExpandedIndex < ExpandedKeyLength;
-        ++ExpandedIndex)
+    for(int KeyIndex = 0;
+        KeyIndex < ExpandedKeyLength;
+        ++KeyIndex)
     {
-        printf("%08x, index: %d\n", ExpandedKey[ExpandedIndex], ExpandedIndex);
-        if((ExpandedIndex + 1) % 4 == 0)
-        {
-            printf("\n");
-        }
+        // printf("i: %02d, %08x\n", KeyIndex, ExpandedKey[KeyIndex]);
     }
 
     return ExpandedKey;
@@ -1206,7 +1230,43 @@ MixColumns(byte_buffer State)
 }
 
 byte_buffer
-AES(byte_buffer Input, byte_buffer Key, flag Operation)
+InvMixColumns(byte_buffer State)
+{
+    byte_buffer TState = CopyByteBuffer(State);
+    for(int Column = 0;
+        Column < 4;
+        ++Column)
+    {
+        State.Buffer[(0 * 4) + Column] =
+            GMul(TState.Buffer[(0 * 4) + Column], 14) ^
+            GMul(TState.Buffer[(1 * 4) + Column], 11) ^
+            GMul(TState.Buffer[(2 * 4) + Column], 13) ^
+            GMul(TState.Buffer[(3 * 4) + Column], 9);
+
+        State.Buffer[(1 * 4) + Column] =
+            GMul(TState.Buffer[(0 * 4) + Column], 9) ^
+            GMul(TState.Buffer[(1 * 4) + Column], 14) ^
+            GMul(TState.Buffer[(2 * 4) + Column], 11) ^
+            GMul(TState.Buffer[(3 * 4) + Column], 13);
+
+        State.Buffer[(2 * 4) + Column] =
+            GMul(TState.Buffer[(0 * 4) + Column], 13) ^
+            GMul(TState.Buffer[(1 * 4) + Column], 9) ^
+            GMul(TState.Buffer[(2 * 4) + Column], 14) ^
+            GMul(TState.Buffer[(3 * 4) + Column], 11);
+
+        State.Buffer[(3 * 4) + Column] =
+            GMul(TState.Buffer[(0 * 4) + Column], 11) ^
+            GMul(TState.Buffer[(1 * 4) + Column], 13) ^
+            GMul(TState.Buffer[(2 * 4) + Column], 9) ^
+            GMul(TState.Buffer[(3 * 4) + Column], 14);
+    }
+
+    return State;
+}
+
+byte_buffer
+AES(byte_buffer Input, byte_buffer Key, flag Operation, bool32 Debug)
 {
     int Nb = 4; // Number of 32-bit words in Plaintext
 
@@ -1231,88 +1291,137 @@ AES(byte_buffer Input, byte_buffer Key, flag Operation)
     assert(Nk == 4 || Nk == 6 || Nk == 8);
     assert(Operation == ENCRYPT || Operation == DECRYPT);
 
-    // NOTE(yuri): Row, Column
     byte_buffer State = InputToState(Input);
 
     uint32 *ExpandedKey = KeyExpansion(Key, Nk, Nb, Nr);
 
-    printf("Start State\n");
-    PrintState(State);
-
     if(Operation == ENCRYPT)
     {
-        printf("Encrypting\n");
+        if(Debug) printf("Encrypting\n");
         int Round = 0;
 
-        State = AddRoundKey(State, ExpandedKey, Round, Nb);
-        printf("Initial AddRoundKey\n");
-        PrintState(State);
+        if(Debug) printf("round[%2d].input    ", Round);
+        if(Debug) PrintShortState(State);
 
-        int ExpandedKeyIndex;
+        State = AddRoundKey(State, ExpandedKey, Round, Nb);
+        if(Debug) printf("round[%2d].k_sch    ", Round);
+        if(Debug) PrintExpandedKey(ExpandedKey, Round, Nb);
+
         for(Round = 1;
             Round <= Nr - 1;
             ++Round)
         {
-            ExpandedKeyIndex = Round * Nb;
+            if(Debug) printf("round[%2d].start    ", Round);
+            if(Debug) PrintShortState(State);
 
             State = SubBytes(State);
-            printf("After SubBytes Round Number: %d\n", Round);
-            PrintState(State);
+            if(Debug) printf("round[%2d].s_box    ", Round);
+            if(Debug) PrintShortState(State);
 
             State = ShiftRows(State);
-            printf("After ShiftRow Round Number: %d\n", Round);
-            PrintState(State);
+            if(Debug) printf("round[%2d].s_row    ", Round);
+            if(Debug) PrintShortState(State);
 
-            printf("After MixColumns Round Number: %d\n", Round);
             State = MixColumns(State);
-            PrintState(State);
+            if(Debug) printf("round[%2d].m_col    ", Round);
+            if(Debug) PrintShortState(State);
 
-            printf("After AddRoundKey Round Number: %d\n", Round);
+            if(Debug) printf("round[%2d].k_sch    ", Round);
+            if(Debug) PrintExpandedKey(ExpandedKey, Round, Nb);
+
             State = AddRoundKey(State, ExpandedKey, Round, Nb);
-            PrintState(State);
         }
 
+
         State = SubBytes(State);
-        printf("After Last SubBytes Round Number: %d\n", Round);
-        PrintState(State);
+        if(Debug) printf("round[%2d].s_box    ", Round);
+        if(Debug) PrintShortState(State);
 
         State = ShiftRows(State);
-        printf("After Last ShiftRows Round Number: %d\n", Round);
-        PrintState(State);
+        if(Debug) printf("round[%2d].s_row    ", Round);
+        if(Debug) PrintShortState(State);
+
+        if(Debug) printf("round[%2d].k_sch    ", Round);
+        if(Debug) PrintExpandedKey(ExpandedKey, Round, Nb);
 
         State = AddRoundKey(State, ExpandedKey, Round, Nb);
-        printf("After Last AddRoundKey Round Number: %d\n", Round);
-        PrintState(State);
+        if(Debug) printf("round[%2d].output   ", Round);
+        if(Debug) PrintShortState(State);
     }
     else if(Operation == DECRYPT)
     {
-        printf("Decrypting\n");
+        if(Debug) printf("Decrypting\n");
 
         int Round = Nr;
 
-        printf("round[%2d].iinput   ", Nr - Round);
-        PrintShortState(State);
-        printf("round[%2d].ik_sch   ", Nr - Round);
-        State = AddRoundKey(State, ExpandedKey, Round, Nb);
-        printf("round[%2d].iinput   ", Nr - Round);
-        PrintShortState(State);
+        if(Debug) printf("round[%2d].iinput   ", Nr - Round);
+        if(Debug) PrintShortState(State);
 
+        State = AddRoundKey(State, ExpandedKey, Round, Nb);
+        if(Debug) printf("round[%2d].ik_sch   ", Nr - Round);
+        if(Debug) PrintExpandedKey(ExpandedKey, 10, Nb);
 
         for(Round = Nr - 1;
             Round > 0;
             --Round)
         {
+
+            if(Debug) printf("round[%2d].istart   ", Nr - Round);
+            if(Debug) PrintShortState(State);
+
             State = InvShiftRows(State);
-            printf("round[%2d].is_row   ", Nr - Round);
-            PrintShortState(State);
+            if(Debug) printf("round[%2d].is_row   ", Nr - Round);
+            if(Debug) PrintShortState(State);
 
+            State = InvSubBytes(State);
+            if(Debug) printf("round[%2d].is_box   ", Nr - Round);
+            if(Debug) PrintShortState(State);
 
+            if(Debug) printf("round[%2d].ik_sch   ", Nr - Round);
+            if(Debug) PrintExpandedKey(ExpandedKey, Round, Nb);
+            State = AddRoundKey(State, ExpandedKey, Round, Nb);
 
+            if(Debug) printf("round[%2d].ik_add   ", Nr - Round);
+            if(Debug) PrintShortState(State);
 
+            InvMixColumns(State);
         }
+
+        State = InvShiftRows(State);
+        if(Debug) printf("round[%2d].is_row   ", Nr - Round);
+        if(Debug) PrintShortState(State);
+
+        State = InvSubBytes(State);
+        if(Debug) printf("round[%2d].is_box   ", Nr - Round);
+        if(Debug) PrintShortState(State);
+
+        if(Debug) printf("round[%2d].ik_sch   ", Nr - Round);
+        if(Debug) PrintExpandedKey(ExpandedKey, Round, Nb);
+        State = AddRoundKey(State, ExpandedKey, Round, Nb);
+
+        if(Debug) printf("round[%2d].ioutput  ", Round);
+        if(Debug) PrintShortState(State);
     }
 
     return StateToOutput(State);
+}
+
+byte_buffer
+AESEncrypt(byte_buffer Input, byte_buffer Key)
+{
+    return AES(Input, Key, ENCRYPT, false);
+}
+
+byte_buffer
+AESDecrypt(byte_buffer Input, byte_buffer Key)
+{
+    return AES(Input, Key, DECRYPT, false);
+}
+
+byte_buffer
+AESTest(byte_buffer Input, byte_buffer Key, flag Operation)
+{
+    return AES(Input, Key, Operation, true);
 }
 
 void
@@ -1320,7 +1429,7 @@ AESEncryptionTest(const char *PlainTextString, const char *KeyString, const char
 {
     byte_buffer PlainText = DecodeHex((uint8 *)PlainTextString);
     byte_buffer Key = DecodeHex((uint8 *)KeyString);
-    byte_buffer CipherText = AES(PlainText, Key, ENCRYPT);
+    byte_buffer CipherText = AESTest(PlainText, Key, ENCRYPT);
 
     byte_buffer ExpectedCipherText = DecodeHex((uint8 *)ExpectedCipherTextString);
     assert(ByteBuffersEqual(CipherText, ExpectedCipherText));
@@ -1331,20 +1440,10 @@ AESDecryptionTest(const char *CipherTextString, const char *KeyString, const cha
 {
     byte_buffer CipherText = DecodeHex((uint8 *)CipherTextString);
     byte_buffer Key = DecodeHex((uint8 *)KeyString);
-    byte_buffer PlainText = AES(CipherText, Key, DECRYPT);
+    byte_buffer PlainText = AESTest(CipherText, Key, DECRYPT);
 
-    byte_buffer ExpectedPlainText= DecodeHex((uint8 *)ExpectedPlainTextString);
+    byte_buffer ExpectedPlainText = DecodeHex((uint8 *)ExpectedPlainTextString);
     assert(ByteBuffersEqual(PlainText, ExpectedPlainText));
-}
-
-
-void
-AES128EncryptionTest(void)
-{
-    AESEncryptionTest("00112233445566778899aabbccddeeff",
-                      "000102030405060708090a0b0c0d0e0f",
-                      "69c4e0d86a7b0430d8cdb78070b4c55a");
-    printf("AES-128 Encryption test passed!\n");
 }
 
 void
@@ -1356,6 +1455,23 @@ AES128EncryptionTestAppendixB(void)
     printf("AES-128 Encryption (Appendix B) test passed!\n");
 }
 
+void
+AES128EncryptionTest(void)
+{
+    AESEncryptionTest("00112233445566778899aabbccddeeff",
+                      "000102030405060708090a0b0c0d0e0f",
+                      "69c4e0d86a7b0430d8cdb78070b4c55a");
+    printf("AES-128 Encryption test passed!\n");
+}
+
+void
+AES128DecryptionTest(void)
+{
+    AESDecryptionTest("69c4e0d86a7b0430d8cdb78070b4c55a",
+                      "000102030405060708090a0b0c0d0e0f",
+                      "00112233445566778899aabbccddeeff");
+    printf("AES-128 Decryption test passed!\n");
+}
 
 void
 AES192EncryptionTest(void)
@@ -1364,6 +1480,15 @@ AES192EncryptionTest(void)
                       "000102030405060708090a0b0c0d0e0f1011121314151617",
                       "dda97ca4864cdfe06eaf70a0ec0d7191");
     printf("AES-192 Encryption test passed!\n");
+}
+
+void
+AES192DecryptionTest(void)
+{
+    AESDecryptionTest("dda97ca4864cdfe06eaf70a0ec0d7191",
+                      "000102030405060708090a0b0c0d0e0f1011121314151617",
+                      "00112233445566778899aabbccddeeff");
+    printf("AES-192 Decryption test passed!\n");
 }
 
 void
@@ -1376,22 +1501,26 @@ AES256EncryptionTest(void)
 }
 
 void
-AES128DecryptionTest(void)
+AES256DecryptionTest(void)
 {
-    AESDecryptionTest("69c4e0d86a7b0430d8cdb78070b4c55a",
-                      "000102030405060708090a0b0c0d0e0f",
+    AESDecryptionTest("8ea2b7ca516745bfeafc49904b496089",
+                      "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
                       "00112233445566778899aabbccddeeff");
-    printf("AES-128 Decryption test passed!\n");
+    printf("AES-256 Decryption test passed!\n");
 }
+
 
 
 void
 AESAllTests(void)
 {
     AES128EncryptionTestAppendixB();
-    // AES192EncryptionTest();
-    // AES256EncryptionTest();
-    // AES128DecryptionTest();
+    AES128EncryptionTest();
+    AES192EncryptionTest();
+    AES256EncryptionTest();
+    AES128DecryptionTest();
+    AES192DecryptionTest();
+    AES256DecryptionTest();
 }
 
 void
