@@ -1197,6 +1197,7 @@ byte_buffer
 MixColumns(byte_buffer State)
 {
     byte_buffer TState = CopyByteBuffer(State);
+
     for(int Column = 0;
         Column < 4;
         ++Column)
@@ -1226,6 +1227,8 @@ MixColumns(byte_buffer State)
             GMul(TState.Buffer[(1 * 4) + Column], 1);
     }
 
+    FreeByteBuffer(TState);
+
     return State;
 }
 
@@ -1233,6 +1236,7 @@ byte_buffer
 InvMixColumns(byte_buffer State)
 {
     byte_buffer TState = CopyByteBuffer(State);
+
     for(int Column = 0;
         Column < 4;
         ++Column)
@@ -1261,6 +1265,8 @@ InvMixColumns(byte_buffer State)
             GMul(TState.Buffer[(2 * 4) + Column], 9) ^
             GMul(TState.Buffer[(3 * 4) + Column], 14);
     }
+
+    FreeByteBuffer(TState);
 
     return State;
 }
@@ -1403,7 +1409,12 @@ AES(byte_buffer Input, byte_buffer Key, flag Operation, bool32 Debug)
         if(Debug) PrintShortState(State);
     }
 
-    return StateToOutput(State);
+    byte_buffer Output = StateToOutput(State);
+
+    FreeByteBuffer(State);
+    free(ExpandedKey);
+
+    return Output;
 }
 
 byte_buffer
@@ -1433,6 +1444,11 @@ AESEncryptionTest(const char *PlainTextString, const char *KeyString, const char
 
     byte_buffer ExpectedCipherText = DecodeHex((uint8 *)ExpectedCipherTextString);
     assert(ByteBuffersEqual(CipherText, ExpectedCipherText));
+
+    FreeByteBuffer(PlainText);
+    FreeByteBuffer(Key);
+    FreeByteBuffer(CipherText);
+    FreeByteBuffer(ExpectedCipherText);
 }
 
 void
@@ -1443,7 +1459,12 @@ AESDecryptionTest(const char *CipherTextString, const char *KeyString, const cha
     byte_buffer PlainText = AESTest(CipherText, Key, DECRYPT);
 
     byte_buffer ExpectedPlainText = DecodeHex((uint8 *)ExpectedPlainTextString);
+
     assert(ByteBuffersEqual(PlainText, ExpectedPlainText));
+    FreeByteBuffer(CipherText);
+    FreeByteBuffer(Key);
+    FreeByteBuffer(PlainText);
+    FreeByteBuffer(ExpectedPlainText);
 }
 
 void
