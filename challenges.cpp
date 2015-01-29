@@ -4,22 +4,15 @@
 void
 Challenges(void)
 {
-    // uint8 InputBytes[16] = {
-    //     0x32, 0x43, 0xf6, 0xa8,
-    //     0x88, 0x5a, 0x30, 0x8d,
-    //     0x31, 0x31, 0x98, 0xa2,
-    //     0xe0, 0x37, 0x07, 0x34
-    // };
-    // byte_buffer Input = CreateByteBuffer(16);
-    // Input.Buffer = InputBytes;
-
-    AESAllTests();
+    // AESAllTests();
     // Challenge1();
     // Challenge2();
     // Challenge3();
     // Challenge4();
     // Challenge5();
     // Challenge6();
+    Challenge7();
+
 }
 
 int
@@ -30,13 +23,25 @@ main(int argc, char *argv[])
     Terminate();
 }
 
+// Decrypt ECB AES
+void
+Challenge7()
+{
+    byte_buffer ByteBuffer = FileToBase64Buffer("data/7.txt");
+    byte_buffer KeyBuffer = StringToByteBuffer((uint8 *)"YELLOW SUBMARINE", 0);
+    byte_buffer PlainTextBuffer = AESDecryptECB(ByteBuffer, KeyBuffer);
+    Print(&PlainTextBuffer, BYTE_BUFFER, AS_STRING);
+
+    FreeByteBuffer(ByteBuffer);
+    FreeByteBuffer(KeyBuffer);
+    FreeByteBuffer(PlainTextBuffer);
+}
+
 // Break repeating-key XOR
 void
 Challenge6()
 {
-    byte_buffer FileBuffer = OpenFileBuffer((uint8 *)"data/6.txt");
-    byte_buffer ByteBuffer = ReadFileAsWrappedBase64String(FileBuffer);
-    FreeFileBuffer(FileBuffer);
+    byte_buffer ByteBuffer = FileToBase64Buffer("data/6.txt");
 
     real32 SmallestEditDistance = 10000;
     int KeySizeGuess = 0;
@@ -53,7 +58,7 @@ Challenge6()
     }
     printf("Smallest edit distance is %f from keysize %d\n", SmallestEditDistance, KeySizeGuess);
 
-    int PaddedSize = ByteBuffer.Size + (KeySizeGuess - (ByteBuffer.Size % KeySizeGuess));
+    int PaddedSize = BlockPaddedSize(ByteBuffer.Size, KeySizeGuess);
     int TransposedSize = PaddedSize / KeySizeGuess;
     printf("PaddedSize: %d, TransposedSize: %d\n", PaddedSize, TransposedSize);
     byte_buffer KeyByteBuffer = CreateByteBuffer(KeySizeGuess);

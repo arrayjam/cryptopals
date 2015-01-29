@@ -93,6 +93,31 @@ CopyByteBuffer(byte_buffer ByteBuffer)
     return Result;
 }
 
+void
+ResizeBuffer(byte_buffer *ByteBuffer, size_t NewSize)
+{
+    if(ByteBuffer->Buffer)
+    {
+        ByteBuffer->Buffer = (uint8 *)realloc(ByteBuffer->Buffer, sizeof(uint8) * NewSize);
+        ByteBuffer->Size = NewSize;
+    }
+}
+
+void
+CatBuffers(byte_buffer *BufferA, byte_buffer BufferB)
+{
+    size_t TotalSize = BufferA->Size + BufferB.Size;
+    size_t OldBufferASize = BufferA->Size;
+    ResizeBuffer(BufferA, TotalSize);
+
+    for(int ByteBufferIndex = OldBufferASize;
+        ByteBufferIndex < TotalSize;
+        ++ByteBufferIndex)
+    {
+        BufferA->Buffer[ByteBufferIndex] = BufferB.Buffer[ByteBufferIndex - OldBufferASize];
+    }
+}
+
 bool32
 ByteBuffersEqual(byte_buffer TestA, byte_buffer TestB)
 {
@@ -808,6 +833,33 @@ ReadFileAsWrappedBase64String(byte_buffer FileBuffer)
     return ByteBuffer;
 }
 
+byte_buffer
+FileToBase64Buffer(const char *Filename)
+{
+    byte_buffer FileBuffer = OpenFileBuffer((uint8 *)Filename);
+    byte_buffer Result = ReadFileAsWrappedBase64String(FileBuffer);
+    FreeFileBuffer(FileBuffer);
+
+    return Result;
+}
+
+int
+BlockPaddedSize(size_t BufferSize, int BlockSize)
+{
+    int Result = 0;
+
+    if(BufferSize % BlockSize == 0)
+    {
+        Result = BufferSize;
+    }
+    else
+    {
+        Result = BufferSize + BlockSize - (BufferSize % BlockSize);
+    }
+
+    return Result;
+}
+
 scored_buffer
 BreakSingleCharacterXOR(byte_buffer ByteBuffer, scored_buffer ScoredBuffer)
 {
@@ -1435,6 +1487,43 @@ AESTest(byte_buffer Input, byte_buffer Key, flag Operation)
     return AES(Input, Key, Operation, true);
 }
 
+byte_buffer
+AESDecryptECB(byte_buffer CipherTextBuffer, byte_buffer KeyBuffer)
+{
+    int AESBlockSize = 16;
+    int BlockPaddedByteBufferSize = BlockPaddedSize(CipherTextBuffer.Size, AESBlockSize);
+    printf("CipherTextBuffer Size: %zu, Padded: %d, /16: %d\n", CipherTextBuffer.Size, BlockPaddedByteBufferSize, BlockPaddedByteBufferSize / 16);
+
+    byte_buffer PlainTextBuffer = CreateByteBuffer(0);
+
+    for(int BlockIndex = 0;
+        BlockIndex < BlockPaddedByteBufferSize / AESBlockSize;
+        ++BlockIndex)
+    {
+        byte_buffer CipherBlock = CreateByteBuffer(AESBlockSize);
+        for(int CipherBlockIndex = 0;
+            CipherBlockIndex < AESBlockSize;
+            ++CipherBlockIndex)
+        {
+            int ByteBufferIndex = (BlockIndex * AESBlockSize) + CipherBlockIndex;
+
+            CipherBlock.Buffer[CipherBlockIndex] = (ByteBufferIndex < CipherTextBuffer.Size) ? CipherTextBuffer.Buffer[ByteBufferIndex] : 0;
+        }
+
+        byte_buffer PlainTextBlock = AESDecrypt(CipherBlock, KeyBuffer);
+
+        // Print(&PlainText, BYTE_BUFFER, AS_NICE_STRING);
+        printf("Size of PlainTextBuffer: %zu\n", PlainTextBuffer.Size);
+        // Print(&PlainTextBuffer);
+        CatBuffers(&PlainTextBuffer, PlainTextBlock);
+        FreeByteBuffer(PlainTextBlock);
+
+        FreeByteBuffer(CipherBlock);
+    }
+
+    return PlainTextBuffer;
+}
+
 void
 AESEncryptionTest(const char *PlainTextString, const char *KeyString, const char *ExpectedCipherTextString)
 {
@@ -1529,8 +1618,6 @@ AES256DecryptionTest(void)
                       "00112233445566778899aabbccddeeff");
     printf("AES-256 Decryption test passed!\n");
 }
-
-
 
 void
 AESAllTests(void)
