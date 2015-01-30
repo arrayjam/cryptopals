@@ -69,6 +69,19 @@ CreateByteBuffer(size_t ByteBufferSize)
     return ByteBuffer;
 }
 
+byte_buffer *
+CreateByteBufferPointer(size_t ByteBufferSize)
+{
+    byte_buffer *ByteBuffer = (byte_buffer *)malloc(sizeof(byte_buffer *));
+    if(!ByteBuffer) printf("Failed to allocate Buffer in ByteBuffer in CreateByteBufferPointer\n");
+
+    ByteBuffer->Size = ByteBufferSize;
+    ByteBuffer->Buffer = (uint8 *)malloc(sizeof(uint8) * ByteBuffer->Size);
+    if(!ByteBuffer->Buffer) printf("Failed to allocate Buffer's Buffer in ByteBuffer in CreateByteBufferPointer\n");
+
+    return ByteBuffer;
+}
+
 void
 FreeByteBuffer(byte_buffer ByteBuffer)
 {
@@ -456,10 +469,11 @@ PrintByteBufferAsHexString(byte_buffer ByteBuffer)
 void
 PrintByteBufferAsDump(byte_buffer ByteBuffer)
 {
-    printf("Char\tHex\tDec\tBin\n");
+    printf("Index\tChar\tHex\tDec\tBin\n");
     for(int i = 0; i < ByteBuffer.Size; i++)
     {
         uint8 Val = ByteBuffer.Buffer[i];
+        printf("%d\t", i);
         PrintNiceChar(Val);
         printf("\t0x%02x\t%d\t", Val, Val);
         PrintBits(&Val, 1);
@@ -667,7 +681,7 @@ MaxBufferScore(scored_buffer ScoredBuffer, byte_buffer ByteBuffer, byte_buffer K
 }
 
 byte_buffer
-OpenFileBuffer(uint8 *Filename)
+OpenFileBuffer(const char *Filename)
 {
     byte_buffer FileBuffer = {0};
     FILE *File = fopen((char *)Filename, "r");
@@ -734,8 +748,8 @@ ReadFileIntoStringBuffers(byte_buffer FileBuffer)
     }
 
     // NOTE(yuri): Allocate an appropriate 2D array
-    StringBuffers.String = (uint8 **)malloc(sizeof(uint8 *) * StringBuffers.Size);
-    if(StringBuffers.String == 0) printf("Allocating StringBuffers.String failed\n");
+    StringBuffers.Strings = (uint8 **)malloc(sizeof(uint8 *) * StringBuffers.Size);
+    if(StringBuffers.Strings == 0) printf("Allocating StringBuffers.String failed\n");
 
     // printf("Allocated StringBuffers.String of size %d\n", StringBuffers.Size);
 
@@ -747,17 +761,17 @@ ReadFileIntoStringBuffers(byte_buffer FileBuffer)
     {
         uint8 *NewLinePointer = SeekToChar(CurrentLinePointer, '\n', FileBufferEnd - CurrentLinePointer);
         size_t CharCount = NewLinePointer - CurrentLinePointer;
-        StringBuffers.String[StringIndex] = (uint8 *)malloc(sizeof(uint8) * (CharCount + 1));
+        StringBuffers.Strings[StringIndex] = (uint8 *)malloc(sizeof(uint8) * (CharCount + 1));
 
-        uint8 CharIndex = 0;
+        int CharIndex = 0;
         // NOTE(yuri): Since NextLinePointer starts on the next line, we want to read up to it
         while(CharIndex < CharCount)
         {
-            StringBuffers.String[StringIndex][CharIndex] = *CurrentLinePointer;
+            StringBuffers.Strings[StringIndex][CharIndex] = *CurrentLinePointer;
             CurrentLinePointer++;
             CharIndex++;
         }
-        StringBuffers.String[StringIndex][CharIndex] = 0;
+        StringBuffers.Strings[StringIndex][CharIndex] = 0;
         CurrentLinePointer = NewLinePointer + 1;
     }
 
@@ -767,18 +781,18 @@ ReadFileIntoStringBuffers(byte_buffer FileBuffer)
 void
 FreeStringBuffers(string_buffers StringBuffers)
 {
-    if(StringBuffers.String)
+    if(StringBuffers.Strings)
     {
         for(int StringIndex = 0;
             StringIndex < StringBuffers.Size;
             StringIndex++)
         {
-            if(StringBuffers.String[StringIndex])
+            if(StringBuffers.Strings[StringIndex])
             {
-                free(StringBuffers.String[StringIndex]);
+                free(StringBuffers.Strings[StringIndex]);
             }
         }
-        free(StringBuffers.String);
+        free(StringBuffers.Strings);
     }
 }
 
@@ -836,7 +850,7 @@ ReadFileAsWrappedBase64String(byte_buffer FileBuffer)
 byte_buffer
 FileToBase64Buffer(const char *Filename)
 {
-    byte_buffer FileBuffer = OpenFileBuffer((uint8 *)Filename);
+    byte_buffer FileBuffer = OpenFileBuffer(Filename);
     byte_buffer Result = ReadFileAsWrappedBase64String(FileBuffer);
     FreeFileBuffer(FileBuffer);
 

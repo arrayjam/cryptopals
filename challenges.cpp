@@ -1,9 +1,115 @@
 #include "cryptopals.cpp"
 #include "challenges.h"
 
+struct byte_buffers
+{
+    byte_buffer **Buffers;
+    size_t Size;
+};
+
+byte_buffers
+ChunkBuffer(byte_buffer ByteBuffer, int BlockSize)
+{
+    byte_buffers ByteBuffers = {};
+    ByteBuffers.Size = BlockPaddedSize(ByteBuffer.Size, BlockSize) / BlockSize;
+
+    ByteBuffers.Buffers = (byte_buffer **)malloc(sizeof(byte_buffer **) * ByteBuffers.Size);
+    if(!ByteBuffers.Buffers) printf("Failed to allocate ByteBuffers.Buffers in ChunkBuffers\n");
+
+    // printf("Full block size: %d, Number of blocks: %zu\n", BlockPaddedSize(ByteBuffer.Size, BlockSize), ByteBuffers.Size);
+
+    for(int BlockIndex = 0;
+        BlockIndex < ByteBuffers.Size;
+        ++BlockIndex)
+    {
+        ByteBuffers.Buffers[BlockIndex] = CreateByteBufferPointer(BlockSize);
+        for(int BlockByteIndex = 0;
+            BlockByteIndex < BlockSize;
+            ++BlockByteIndex)
+        {
+            int ByteBufferIndex = (BlockIndex * BlockSize) + BlockByteIndex;
+            uint8 Char = (ByteBufferIndex < ByteBuffer.Size) ? ByteBuffer.Buffer[ByteBufferIndex] : 0;
+
+            ByteBuffers.Buffers[BlockIndex]->Buffer[BlockByteIndex] = Char;
+            // printf("ByteBufferIndex: %d, BlockIndex: %d, Char: %02x\n", ByteBufferIndex, BlockIndex, Char);
+        }
+        // Print(&ByteBuffers.Buffers[BlockIndex], BYTE_BUFFER, AS_NICE_STRING);
+    }
+
+    return ByteBuffers;
+}
+
 void
 Challenges(void)
 {
+    byte_buffer FileBuffer = OpenFileBuffer("data/8.txt");
+
+    string_buffers StringsBuffer = ReadFileIntoStringBuffers(FileBuffer);
+
+    byte_buffer BestBuffer;
+    int MaxEqualBlocksCount = 0;
+    int MaxEqualBlocksIndex = 0;
+    for(int StringIndex = 0;
+        StringIndex < StringsBuffer.Size;
+        ++StringIndex)
+    {
+        // Print(StringsBuffer.Strings[StringIndex], STRING, AS_NICE_STRING);
+        byte_buffer CipherTextBuffer = DecodeHex(StringsBuffer.Strings[StringIndex]);
+        byte_buffers CipherTextBlocks = ChunkBuffer(CipherTextBuffer, AES_BLOCK_SIZE);
+        int EqualBlocksCount = 0;
+        for(int BlockAIndex = 0;
+            BlockAIndex < CipherTextBlocks.Size - 1;
+            ++BlockAIndex)
+        {
+            for(int BlockBIndex = BlockAIndex + 1;
+                BlockBIndex < CipherTextBlocks.Size;
+                ++BlockBIndex)
+            {
+                byte_buffer BlockA = *CipherTextBlocks.Buffers[BlockAIndex];
+                byte_buffer BlockB = *CipherTextBlocks.Buffers[BlockBIndex];
+                if(ByteBuffersEqual(BlockA, BlockB))
+                {
+                    EqualBlocksCount++;
+                }
+            }
+        }
+
+        if(EqualBlocksCount > MaxEqualBlocksCount)
+        {
+            printf("New top found at index %d, from %d to %d\n", StringIndex, MaxEqualBlocksCount, EqualBlocksCount);
+            BestBuffer = CipherTextBuffer;
+            MaxEqualBlocksCount = EqualBlocksCount;
+            MaxEqualBlocksIndex = StringIndex;
+        }
+    }
+
+    printf("Found %d Equal blocks at string %d\n", MaxEqualBlocksCount, MaxEqualBlocksIndex);
+
+    for(int a = 0;
+        a < BestBuffer.Size / 16;
+        ++a)
+    {
+        for(int i = 0;
+            i < 16;
+            ++i)
+        {
+            printf("%02x", *(BestBuffer.Buffer + (a * 16) + i));
+        }
+        printf("\n");
+    }
+
+    Print(&BestBuffer, BYTE_BUFFER, AS_DUMP);
+
+
+
+
+
+
+
+
+
+
+
     // AESAllTests();
     // Challenge1();
     // Challenge2();
@@ -11,8 +117,7 @@ Challenges(void)
     // Challenge4();
     // Challenge5();
     // Challenge6();
-    Challenge7();
-
+    // Challenge7();
 }
 
 int
@@ -120,8 +225,7 @@ Challenge5()
 void
 Challenge4()
 {
-    uint8 *Filename = (uint8 *)"data/4.txt";
-    byte_buffer FileBuffer = OpenFileBuffer(Filename);
+    byte_buffer FileBuffer = OpenFileBuffer("data/4.txt");
 
     if(FileBuffer.Buffer)
     {
@@ -132,7 +236,7 @@ Challenge4()
             StringIndex < StringBuffers.Size;
             StringIndex++)
         {
-            byte_buffer ByteBuffer = DecodeHex(StringBuffers.String[StringIndex]);
+            byte_buffer ByteBuffer = DecodeHex(StringBuffers.Strings[StringIndex]);
             ScoredBuffer = BreakSingleCharacterXOR(ByteBuffer, ScoredBuffer);
             FreeByteBuffer(ByteBuffer);
         }

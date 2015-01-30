@@ -45,6 +45,7 @@ typedef uint16 flag;
 // NOTE(yuri): AES Options
 #define ENCRYPT        0
 #define DECRYPT        1
+#define AES_BLOCK_SIZE 16
 
 void Print(void *Value, flag Type, flag PrintOptions);
 
@@ -70,7 +71,7 @@ struct scored_buffer
 
 struct string_buffers
 {
-  uint8 **String;
+  uint8 **Strings;
   size_t Size;
 };
 
