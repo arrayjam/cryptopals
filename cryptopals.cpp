@@ -15,6 +15,23 @@ SeekToChar(uint8 *String, uint8 Char, size_t MaxSeek)
     return SeekPtr;
 }
 
+int
+BlockPaddedSize(size_t BufferSize, int BlockSize)
+{
+    int Result = 0;
+
+    if(BufferSize % BlockSize == 0)
+    {
+        Result = BufferSize;
+    }
+    else
+    {
+        Result = BufferSize + BlockSize - (BufferSize % BlockSize);
+    }
+
+    return Result;
+}
+
 size_t
 StringLength(uint8 *String)
 {
@@ -154,6 +171,47 @@ ByteBuffersEqual(byte_buffer TestA, byte_buffer TestB)
     Result = true;
 
     return Result;
+}
+
+byte_buffers
+ChunkBuffer(byte_buffer ByteBuffer, int BlockSize)
+{
+    byte_buffers ByteBuffers = {};
+    ByteBuffers.Size = BlockPaddedSize(ByteBuffer.Size, BlockSize) / BlockSize;
+
+    ByteBuffers.Buffers = (byte_buffer *)malloc(sizeof(byte_buffer) * ByteBuffers.Size);
+    if(!ByteBuffers.Buffers) printf("Failed to allocate ByteBuffers.Buffers in ChunkBuffers\n");
+
+    for(int BlockIndex = 0;
+        BlockIndex < ByteBuffers.Size;
+        ++BlockIndex)
+    {
+        ByteBuffers.Buffers[BlockIndex] = CreateByteBuffer(BlockSize);
+        for(int BlockByteIndex = 0;
+            BlockByteIndex < BlockSize;
+            ++BlockByteIndex)
+        {
+            int ByteBufferIndex = (BlockIndex * BlockSize) + BlockByteIndex;
+            uint8 Char = (ByteBufferIndex < ByteBuffer.Size) ? ByteBuffer.Buffer[ByteBufferIndex] : 0;
+
+            ByteBuffers.Buffers[BlockIndex].Buffer[BlockByteIndex] = Char;
+        }
+    }
+
+    return ByteBuffers;
+}
+
+void
+FreeByteBuffers(byte_buffers ByteBuffers)
+{
+    for(int ByteBuffersIndex = 0;
+        ByteBuffersIndex < ByteBuffers.Size;
+        ++ByteBuffersIndex)
+    {
+        FreeByteBuffer(ByteBuffers.Buffers[ByteBuffersIndex]);
+    }
+
+    free(ByteBuffers.Buffers);
 }
 
 byte_buffer
@@ -458,6 +516,7 @@ PrintByteBufferAsString(byte_buffer ByteBuffer)
     }
     printf("\n");
 }
+
 void
 PrintByteBufferAsHexString(byte_buffer ByteBuffer)
 {
@@ -532,6 +591,17 @@ Print(void *Value, flag Type, flag PrintOptions)
     else if(Type & STRING)
     {
         ByteBuffer = StringToByteBuffer((uint8 *)Value, 1);
+    }
+    else if(Type & BYTE_BUFFERS)
+    {
+        byte_buffers *ByteBuffers = (byte_buffers *)Value;
+        for(int ByteBuffersIndex = 0;
+            ByteBuffersIndex < ByteBuffers->Size;
+            ++ByteBuffersIndex)
+        {
+            Print(&ByteBuffers->Buffers[ByteBuffersIndex], BYTE_BUFFER, PrintOptions);
+        }
+        return;
     }
 
     if(PrintOptions & AS_STRING)
@@ -857,19 +927,12 @@ FileToBase64Buffer(const char *Filename)
     return Result;
 }
 
-int
-BlockPaddedSize(size_t BufferSize, int BlockSize)
+string_buffers
+FileToStringBuffers(const char *Filename)
 {
-    int Result = 0;
-
-    if(BufferSize % BlockSize == 0)
-    {
-        Result = BufferSize;
-    }
-    else
-    {
-        Result = BufferSize + BlockSize - (BufferSize % BlockSize);
-    }
+    byte_buffer FileBuffer = OpenFileBuffer(Filename);
+    string_buffers Result = ReadFileIntoStringBuffers(FileBuffer);
+    FreeFileBuffer(FileBuffer);
 
     return Result;
 }

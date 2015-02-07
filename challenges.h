@@ -6,5 +6,6 @@ void Challenge4();
 void Challenge5();
 void Challenge6();
 void Challenge7();
+void Challenge8();
 #define CHALLENGES_H
 #endif

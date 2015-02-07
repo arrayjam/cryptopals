@@ -31,9 +31,10 @@ typedef uint16 flag;
 
 // NOTE(yuri): Print Types
 #define BYTE_BUFFER    (1 << 1)
-#define HEX_STRING     (1 << 2)
-#define BASE64_STRING  (1 << 3)
-#define STRING         (1 << 4)
+#define BYTE_BUFFERS   (1 << 2)
+#define HEX_STRING     (1 << 3)
+#define BASE64_STRING  (1 << 4)
+#define STRING         (1 << 5)
 
 // NOTE(yuri): Print Options
 #define AS_STRING      (1 << 1)
@@ -53,6 +54,12 @@ struct byte_buffer
 {
   uint8 *Buffer;
   size_t Size;
+};
+
+struct byte_buffers
+{
+    byte_buffer *Buffers;
+    size_t Size;
 };
 
 struct base64_lookup

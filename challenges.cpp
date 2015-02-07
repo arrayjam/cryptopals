@@ -1,50 +1,33 @@
 #include "cryptopals.cpp"
 #include "challenges.h"
 
-struct byte_buffers
-{
-    byte_buffer **Buffers;
-    size_t Size;
-};
-
-byte_buffers
-ChunkBuffer(byte_buffer ByteBuffer, int BlockSize)
-{
-    byte_buffers ByteBuffers = {};
-    ByteBuffers.Size = BlockPaddedSize(ByteBuffer.Size, BlockSize) / BlockSize;
-
-    ByteBuffers.Buffers = (byte_buffer **)malloc(sizeof(byte_buffer **) * ByteBuffers.Size);
-    if(!ByteBuffers.Buffers) printf("Failed to allocate ByteBuffers.Buffers in ChunkBuffers\n");
-
-    // printf("Full block size: %d, Number of blocks: %zu\n", BlockPaddedSize(ByteBuffer.Size, BlockSize), ByteBuffers.Size);
-
-    for(int BlockIndex = 0;
-        BlockIndex < ByteBuffers.Size;
-        ++BlockIndex)
-    {
-        ByteBuffers.Buffers[BlockIndex] = CreateByteBufferPointer(BlockSize);
-        for(int BlockByteIndex = 0;
-            BlockByteIndex < BlockSize;
-            ++BlockByteIndex)
-        {
-            int ByteBufferIndex = (BlockIndex * BlockSize) + BlockByteIndex;
-            uint8 Char = (ByteBufferIndex < ByteBuffer.Size) ? ByteBuffer.Buffer[ByteBufferIndex] : 0;
-
-            ByteBuffers.Buffers[BlockIndex]->Buffer[BlockByteIndex] = Char;
-            // printf("ByteBufferIndex: %d, BlockIndex: %d, Char: %02x\n", ByteBufferIndex, BlockIndex, Char);
-        }
-        // Print(&ByteBuffers.Buffers[BlockIndex], BYTE_BUFFER, AS_NICE_STRING);
-    }
-
-    return ByteBuffers;
-}
-
 void
 Challenges(void)
 {
-    byte_buffer FileBuffer = OpenFileBuffer("data/8.txt");
+    // AESAllTests();
+    // Challenge1();
+    // Challenge2();
+    // Challenge3();
+    // Challenge4();
+    // Challenge5();
+    // Challenge6();
+    // Challenge7();
+    Challenge8();
+}
 
-    string_buffers StringsBuffer = ReadFileIntoStringBuffers(FileBuffer);
+int
+main(int argc, char *argv[])
+{
+    Initialize();
+    Challenges();
+    Terminate();
+}
+
+// Detect AES in ECB mode
+void
+Challenge8()
+{
+    string_buffers StringsBuffer = FileToStringBuffers("data/8.txt");
 
     byte_buffer BestBuffer;
     int MaxEqualBlocksCount = 0;
@@ -65,8 +48,8 @@ Challenges(void)
                 BlockBIndex < CipherTextBlocks.Size;
                 ++BlockBIndex)
             {
-                byte_buffer BlockA = *CipherTextBlocks.Buffers[BlockAIndex];
-                byte_buffer BlockB = *CipherTextBlocks.Buffers[BlockBIndex];
+                byte_buffer BlockA = CipherTextBlocks.Buffers[BlockAIndex];
+                byte_buffer BlockB = CipherTextBlocks.Buffers[BlockBIndex];
                 if(ByteBuffersEqual(BlockA, BlockB))
                 {
                     EqualBlocksCount++;
@@ -74,58 +57,26 @@ Challenges(void)
             }
         }
 
+        FreeByteBuffers(CipherTextBlocks);
+
         if(EqualBlocksCount > MaxEqualBlocksCount)
         {
             printf("New top found at index %d, from %d to %d\n", StringIndex, MaxEqualBlocksCount, EqualBlocksCount);
-            BestBuffer = CipherTextBuffer;
+            // FreeByteBuffer(BestBuffer);
+            BestBuffer = CopyByteBuffer(CipherTextBuffer);
             MaxEqualBlocksCount = EqualBlocksCount;
             MaxEqualBlocksIndex = StringIndex;
         }
+        FreeByteBuffer(CipherTextBuffer);
     }
+
+    FreeStringBuffers(StringsBuffer);
 
     printf("Found %d Equal blocks at string %d\n", MaxEqualBlocksCount, MaxEqualBlocksIndex);
 
-    for(int a = 0;
-        a < BestBuffer.Size / 16;
-        ++a)
-    {
-        for(int i = 0;
-            i < 16;
-            ++i)
-        {
-            printf("%02x", *(BestBuffer.Buffer + (a * 16) + i));
-        }
-        printf("\n");
-    }
-
-    Print(&BestBuffer, BYTE_BUFFER, AS_DUMP);
-
-
-
-
-
-
-
-
-
-
-
-    // AESAllTests();
-    // Challenge1();
-    // Challenge2();
-    // Challenge3();
-    // Challenge4();
-    // Challenge5();
-    // Challenge6();
-    // Challenge7();
-}
-
-int
-main(int argc, char *argv[])
-{
-    Initialize();
-    Challenges();
-    Terminate();
+    // byte_buffers BestBuffers = ChunkBuffer(BestBuffer, AES_BLOCK_SIZE);
+    // Print(&BestBuffers, BYTE_BUFFERS, AS_HEX);
+    FreeByteBuffer(BestBuffer);
 }
 
 // Decrypt ECB AES
