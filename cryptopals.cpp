@@ -478,6 +478,25 @@ PrintBits(uint8 *Value, size_t Size)
 }
 
 void
+PrintSignedBits(int8 *Value, size_t Size)
+{
+    uint8 Byte;
+    int ByteIndex, BitIndex;
+
+    for(ByteIndex = Size - 1; ByteIndex >= 0; ByteIndex--)
+    {
+        for(BitIndex = 7; BitIndex >= 0; BitIndex--)
+        {
+            Byte = Value[ByteIndex] & (1 << BitIndex);
+            Byte >>= BitIndex;
+            //printf("i: %d, j: %d, byte: %u\n", ByteIndex, BitIndex, Byte);
+            printf("%u", Byte);
+        }
+        printf(" ");
+    }
+}
+
+void
 Print32Bits(uint32 *Value, size_t Size)
 {
     uint8 Byte;
@@ -518,6 +537,24 @@ PrintByteBufferAsString(byte_buffer ByteBuffer)
 }
 
 void
+PrintByteBufferAsAsciiHexString(byte_buffer ByteBuffer)
+{
+    for(int i = 0; i < ByteBuffer.Size; i++)
+    {
+        uint8 Char = ByteBuffer.Buffer[i];
+        if(!isprint(Char))
+        {
+            printf("\\x%02x", Char);
+        }
+        else
+        {
+            printf("%c", Char);
+        }
+    }
+    printf("\n");
+}
+
+void
 PrintByteBufferAsHexString(byte_buffer ByteBuffer)
 {
     uint8 *HexString = EncodeHex(ByteBuffer);
@@ -550,9 +587,9 @@ PrintByteBufferAsBase64(byte_buffer ByteBuffer)
 }
 
 byte_buffer
-StringToByteBuffer(uint8 *String, bool32 IncludeNUL)
+StringToByteBuffer(const char *String, bool32 IncludeNUL)
 {
-    size_t Length = StringLength(String);
+    size_t Length = StringLength((uint8 *)String);
 
     // NOTE(yuri): These byte_buffers will include the trailing NUL
     if(IncludeNUL)
@@ -590,7 +627,7 @@ Print(void *Value, flag Type, flag PrintOptions)
     }
     else if(Type & STRING)
     {
-        ByteBuffer = StringToByteBuffer((uint8 *)Value, 1);
+        ByteBuffer = StringToByteBuffer((const char *)Value, 1);
     }
     else if(Type & BYTE_BUFFERS)
     {
@@ -612,6 +649,11 @@ Print(void *Value, flag Type, flag PrintOptions)
     if(PrintOptions & AS_NICE_STRING)
     {
         PrintByteBufferAsNiceString(ByteBuffer);
+    }
+
+    if(PrintOptions & AS_HEX_STRING)
+    {
+        PrintByteBufferAsAsciiHexString(ByteBuffer);
     }
 
     if(PrintOptions & AS_HEX)

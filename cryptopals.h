@@ -39,9 +39,10 @@ typedef uint16 flag;
 // NOTE(yuri): Print Options
 #define AS_STRING      (1 << 1)
 #define AS_NICE_STRING (1 << 2)
-#define AS_HEX         (1 << 3)
-#define AS_DUMP        (1 << 4)
-#define AS_BASE64      (1 << 5)
+#define AS_HEX_STRING  (1 << 3)
+#define AS_HEX         (1 << 4)
+#define AS_DUMP        (1 << 5)
+#define AS_BASE64      (1 << 6)
 
 // NOTE(yuri): AES Options
 #define ENCRYPT        0

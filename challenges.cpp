@@ -12,7 +12,8 @@ Challenges(void)
     // Challenge5();
     // Challenge6();
     // Challenge7();
-    Challenge8();
+    // Challenge8();
+    Challenge9();
 }
 
 int
@@ -21,6 +22,39 @@ main(int argc, char *argv[])
     Initialize();
     Challenges();
     Terminate();
+}
+
+byte_buffer
+PKCS7PaddedBuffer(byte_buffer ByteBuffer, int BlockSize)
+{
+    int PaddedSize = BlockPaddedSize(ByteBuffer.Size, BlockSize);
+
+    byte_buffer Result = CopyByteBuffer(ByteBuffer);
+    ResizeBuffer(&Result, PaddedSize);
+
+    int PaddingChar = PaddedSize - ByteBuffer.Size;
+    for(int PaddingIndex = ByteBuffer.Size;
+        PaddingIndex < PaddedSize;
+        ++PaddingIndex)
+    {
+        Result.Buffer[PaddingIndex] = PaddingChar;
+    }
+
+    return Result;
+}
+
+// Implement PKCS#7 padding
+void
+Challenge9()
+{
+    byte_buffer ByteBuffer = StringToByteBuffer("YELLOW SUBMARINE", 0);
+    byte_buffer Padded = PKCS7PaddedBuffer(ByteBuffer, 20);
+
+    Print(&ByteBuffer, BYTE_BUFFER, AS_STRING);
+    Print(&Padded, BYTE_BUFFER, AS_HEX_STRING);
+
+    FreeByteBuffer(ByteBuffer);
+    FreeByteBuffer(Padded);
 }
 
 // Detect AES in ECB mode
@@ -84,7 +118,7 @@ void
 Challenge7()
 {
     byte_buffer ByteBuffer = FileToBase64Buffer("data/7.txt");
-    byte_buffer KeyBuffer = StringToByteBuffer((uint8 *)"YELLOW SUBMARINE", 0);
+    byte_buffer KeyBuffer = StringToByteBuffer("YELLOW SUBMARINE", 0);
     byte_buffer PlainTextBuffer = AESDecryptECB(ByteBuffer, KeyBuffer);
     Print(&PlainTextBuffer, BYTE_BUFFER, AS_STRING);
 
@@ -154,8 +188,8 @@ Challenge6()
 void
 Challenge5()
 {
-    uint8 *PlainText = (uint8 *)"Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal";
-    uint8 *Key = (uint8 *)"ICE";
+    const char *PlainText = "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal";
+    const char *Key = "ICE";
     byte_buffer PlainTextByteBuffer = StringToByteBuffer(PlainText, 0);
     byte_buffer KeyByteBuffer = StringToByteBuffer(Key, 0);
     byte_buffer Ciphered = RepeatingByteBufferXOR(PlainTextByteBuffer, KeyByteBuffer);
