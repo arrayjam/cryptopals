@@ -123,29 +123,33 @@ CopyByteBuffer(byte_buffer ByteBuffer)
     return Result;
 }
 
-void
-ResizeBuffer(byte_buffer *ByteBuffer, size_t NewSize)
+byte_buffer
+ResizeBuffer(byte_buffer ByteBuffer, size_t NewSize)
 {
-    if(ByteBuffer->Buffer)
+    if(ByteBuffer.Buffer)
     {
-        ByteBuffer->Buffer = (uint8 *)realloc(ByteBuffer->Buffer, sizeof(uint8) * NewSize);
-        ByteBuffer->Size = NewSize;
+        ByteBuffer.Buffer = (uint8 *)realloc(ByteBuffer.Buffer, sizeof(uint8) * NewSize);
+        ByteBuffer.Size = NewSize;
     }
+
+    return ByteBuffer;
 }
 
-void
-CatBuffers(byte_buffer *BufferA, byte_buffer BufferB)
+byte_buffer
+CatBuffers(byte_buffer BufferA, byte_buffer BufferB)
 {
-    size_t TotalSize = BufferA->Size + BufferB.Size;
-    size_t OldBufferASize = BufferA->Size;
-    ResizeBuffer(BufferA, TotalSize);
+    size_t TotalSize = BufferA.Size + BufferB.Size;
+    size_t OldBufferASize = BufferA.Size;
+    BufferA = ResizeBuffer(BufferA, TotalSize);
 
     for(int ByteBufferIndex = OldBufferASize;
         ByteBufferIndex < TotalSize;
         ++ByteBufferIndex)
     {
-        BufferA->Buffer[ByteBufferIndex] = BufferB.Buffer[ByteBufferIndex - OldBufferASize];
+        BufferA.Buffer[ByteBufferIndex] = BufferB.Buffer[ByteBufferIndex - OldBufferASize];
     }
+
+    return BufferA;
 }
 
 bool32
@@ -212,6 +216,36 @@ FreeByteBuffers(byte_buffers ByteBuffers)
     }
 
     free(ByteBuffers.Buffers);
+}
+
+byte_buffer
+FillBuffer(byte_buffer ByteBuffer, uint8 Filler)
+{
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < ByteBuffer.Size;
+        ++ByteBufferIndex)
+    {
+        ByteBuffer.Buffer[ByteBufferIndex] = Filler;
+    }
+
+    return ByteBuffer;
+}
+
+byte_buffer
+CopyIntoBuffer(byte_buffer Input, int StartIndex, int BlockSize)
+{
+    byte_buffer Result = CreateByteBuffer(BlockSize);
+
+    for(int CopyIndex = 0;
+        CopyIndex < BlockSize;
+        ++CopyIndex)
+    {
+        int FullCopyIndex = StartIndex + CopyIndex;
+
+        Result.Buffer[CopyIndex] = (FullCopyIndex < Input.Size) ? Input.Buffer[FullCopyIndex] : 0;
+    }
+
+    return Result;
 }
 
 byte_buffer
@@ -1589,52 +1623,48 @@ AES(byte_buffer Input, byte_buffer Key, flag Operation, bool32 Debug)
 }
 
 byte_buffer
+AESOperation(byte_buffer Input, byte_buffer Key, flag Operation)
+{
+    assert((Operation == ENCRYPT) ||
+           (Operation == DECRYPT));
+    return AES(Input, Key, Operation, false);
+}
+
+byte_buffer
+AESOperationDebug(byte_buffer Input, byte_buffer Key, flag Operation)
+{
+    assert((Operation == ENCRYPT) ||
+           (Operation == DECRYPT));
+    return AES(Input, Key, Operation, true);
+}
+
+byte_buffer
 AESEncrypt(byte_buffer Input, byte_buffer Key)
 {
-    return AES(Input, Key, ENCRYPT, false);
+    return AESOperation(Input, Key, ENCRYPT);
 }
 
 byte_buffer
 AESDecrypt(byte_buffer Input, byte_buffer Key)
 {
-    return AES(Input, Key, DECRYPT, false);
+    return AESOperation(Input, Key, DECRYPT);
 }
 
 byte_buffer
-AESTest(byte_buffer Input, byte_buffer Key, flag Operation)
+AESECBOperation(byte_buffer CipherTextBuffer, byte_buffer KeyBuffer, flag Operation)
 {
-    return AES(Input, Key, Operation, true);
-}
-
-byte_buffer
-AESDecryptECB(byte_buffer CipherTextBuffer, byte_buffer KeyBuffer)
-{
-    int AESBlockSize = 16;
-    int BlockPaddedByteBufferSize = BlockPaddedSize(CipherTextBuffer.Size, AESBlockSize);
-    printf("CipherTextBuffer Size: %zu, Padded: %d, /16: %d\n", CipherTextBuffer.Size, BlockPaddedByteBufferSize, BlockPaddedByteBufferSize / 16);
+    int BlockPaddedByteBufferSize = BlockPaddedSize(CipherTextBuffer.Size, AES_BLOCK_SIZE);
 
     byte_buffer PlainTextBuffer = CreateByteBuffer(0);
 
     for(int BlockIndex = 0;
-        BlockIndex < BlockPaddedByteBufferSize / AESBlockSize;
+        BlockIndex < BlockPaddedByteBufferSize / AES_BLOCK_SIZE;
         ++BlockIndex)
     {
-        byte_buffer CipherBlock = CreateByteBuffer(AESBlockSize);
-        for(int CipherBlockIndex = 0;
-            CipherBlockIndex < AESBlockSize;
-            ++CipherBlockIndex)
-        {
-            int ByteBufferIndex = (BlockIndex * AESBlockSize) + CipherBlockIndex;
+        byte_buffer CipherBlock = CopyIntoBuffer(CipherTextBuffer, BlockIndex * AES_BLOCK_SIZE, AES_BLOCK_SIZE);
 
-            CipherBlock.Buffer[CipherBlockIndex] = (ByteBufferIndex < CipherTextBuffer.Size) ? CipherTextBuffer.Buffer[ByteBufferIndex] : 0;
-        }
-
-        byte_buffer PlainTextBlock = AESDecrypt(CipherBlock, KeyBuffer);
-
-        // Print(&PlainText, BYTE_BUFFER, AS_NICE_STRING);
-        printf("Size of PlainTextBuffer: %zu\n", PlainTextBuffer.Size);
-        // Print(&PlainTextBuffer);
-        CatBuffers(&PlainTextBuffer, PlainTextBlock);
+        byte_buffer PlainTextBlock = AESOperation(CipherBlock, KeyBuffer, Operation);
+        PlainTextBuffer = CatBuffers(PlainTextBuffer, PlainTextBlock);
         FreeByteBuffer(PlainTextBlock);
 
         FreeByteBuffer(CipherBlock);
@@ -1643,12 +1673,24 @@ AESDecryptECB(byte_buffer CipherTextBuffer, byte_buffer KeyBuffer)
     return PlainTextBuffer;
 }
 
+byte_buffer
+AESDecryptECB(byte_buffer CipherTextBuffer, byte_buffer KeyBuffer)
+{
+    return AESECBOperation(CipherTextBuffer, KeyBuffer, DECRYPT);
+}
+
+byte_buffer
+AESEncryptECB(byte_buffer PlainTextBuffer, byte_buffer KeyBuffer)
+{
+    return AESECBOperation(PlainTextBuffer, KeyBuffer, ENCRYPT);
+}
+
 void
 AESEncryptionTest(const char *PlainTextString, const char *KeyString, const char *ExpectedCipherTextString)
 {
     byte_buffer PlainText = DecodeHex((uint8 *)PlainTextString);
     byte_buffer Key = DecodeHex((uint8 *)KeyString);
-    byte_buffer CipherText = AESTest(PlainText, Key, ENCRYPT);
+    byte_buffer CipherText = AESOperationDebug(PlainText, Key, ENCRYPT);
 
     byte_buffer ExpectedCipherText = DecodeHex((uint8 *)ExpectedCipherTextString);
     assert(ByteBuffersEqual(CipherText, ExpectedCipherText));
@@ -1664,7 +1706,7 @@ AESDecryptionTest(const char *CipherTextString, const char *KeyString, const cha
 {
     byte_buffer CipherText = DecodeHex((uint8 *)CipherTextString);
     byte_buffer Key = DecodeHex((uint8 *)KeyString);
-    byte_buffer PlainText = AESTest(CipherText, Key, DECRYPT);
+    byte_buffer PlainText = AESOperationDebug(CipherText, Key, DECRYPT);
 
     byte_buffer ExpectedPlainText = DecodeHex((uint8 *)ExpectedPlainTextString);
 
@@ -1748,6 +1790,67 @@ AESAllTests(void)
     AES128DecryptionTest();
     AES192DecryptionTest();
     AES256DecryptionTest();
+}
+
+byte_buffer
+PKCS7PaddedBuffer(byte_buffer ByteBuffer, int BlockSize)
+{
+    int PaddedSize = BlockPaddedSize(ByteBuffer.Size, BlockSize);
+
+    byte_buffer Result = CopyByteBuffer(ByteBuffer);
+    Result = ResizeBuffer(Result, PaddedSize);
+
+    int PaddingChar = PaddedSize - ByteBuffer.Size;
+    for(int PaddingIndex = ByteBuffer.Size;
+        PaddingIndex < PaddedSize;
+        ++PaddingIndex)
+    {
+        Result.Buffer[PaddingIndex] = PaddingChar;
+    }
+
+    return Result;
+}
+
+byte_buffer
+AESCBCOperation(byte_buffer ByteBuffer, byte_buffer KeyBuffer, byte_buffer IV, flag Operation)
+{
+    byte_buffer Result = CreateByteBuffer(0);
+
+    int BlockPaddedByteBufferSize = BlockPaddedSize(ByteBuffer.Size, AES_BLOCK_SIZE);
+    int Blocks = BlockPaddedByteBufferSize / AES_BLOCK_SIZE;
+
+    for(int BlockIndex = 0;
+        BlockIndex < Blocks;
+        ++BlockIndex)
+    {
+        byte_buffer BeforeAESBlock = CopyIntoBuffer(ByteBuffer, BlockIndex * AES_BLOCK_SIZE, AES_BLOCK_SIZE);
+
+        byte_buffer AfterAESBlock = AESOperation(BeforeAESBlock, KeyBuffer, Operation);
+
+        AfterAESBlock = ByteBufferXOR(AfterAESBlock, IV);
+
+        Result = CatBuffers(Result, AfterAESBlock);
+
+        FreeByteBuffer(IV);
+        IV = CopyByteBuffer(BeforeAESBlock);
+
+        FreeByteBuffer(BeforeAESBlock);
+        FreeByteBuffer(AfterAESBlock);
+    }
+
+    return Result;
+}
+
+byte_buffer
+AESDecryptCBC(byte_buffer CipherText, byte_buffer KeyBuffer, byte_buffer IV)
+{
+    return AESCBCOperation(CipherText, KeyBuffer, IV, DECRYPT);
+}
+
+byte_buffer
+AESEncryptCBC(byte_buffer PlainText, byte_buffer KeyBuffer, byte_buffer IV)
+{
+    return AESCBCOperation(PlainText, KeyBuffer, IV, ENCRYPT);
 }
 
 void

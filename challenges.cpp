@@ -4,6 +4,14 @@
 void
 Challenges(void)
 {
+
+    // return PlainTextBuffer;
+
+
+    // FreeByteBuffer(ByteBuffer);
+    // FreeByteBuffer(KeyBuffer);
+    // FreeByteBuffer(PlainTextBuffer);
+    // FreeByteBuffer(CipherTextBuffer);
     // AESAllTests();
     // Challenge1();
     // Challenge2();
@@ -13,7 +21,8 @@ Challenges(void)
     // Challenge6();
     // Challenge7();
     // Challenge8();
-    Challenge9();
+    // Challenge9();
+    Challenge10();
 }
 
 int
@@ -24,23 +33,25 @@ main(int argc, char *argv[])
     Terminate();
 }
 
-byte_buffer
-PKCS7PaddedBuffer(byte_buffer ByteBuffer, int BlockSize)
+
+// Implement CBC mode
+void
+Challenge10()
 {
-    int PaddedSize = BlockPaddedSize(ByteBuffer.Size, BlockSize);
+    byte_buffer ByteBuffer = FileToBase64Buffer("data/10.txt");
+    byte_buffer KeyBuffer = StringToByteBuffer("YELLOW SUBMARINE", 0);
+    byte_buffer IV = CreateByteBuffer(AES_BLOCK_SIZE);
+    // Print(&ByteBuffer, BYTE_BUFFER, AS_DUMP);
+    IV = FillBuffer(IV, 0);
 
-    byte_buffer Result = CopyByteBuffer(ByteBuffer);
-    ResizeBuffer(&Result, PaddedSize);
+    byte_buffer PlainText = AESDecryptCBC(ByteBuffer, KeyBuffer, IV);
 
-    int PaddingChar = PaddedSize - ByteBuffer.Size;
-    for(int PaddingIndex = ByteBuffer.Size;
-        PaddingIndex < PaddedSize;
-        ++PaddingIndex)
-    {
-        Result.Buffer[PaddingIndex] = PaddingChar;
-    }
+    Print(&PlainText, BYTE_BUFFER, AS_NICE_STRING);
 
-    return Result;
+    FreeByteBuffer(ByteBuffer);
+    FreeByteBuffer(KeyBuffer);
+    FreeByteBuffer(IV);
+    FreeByteBuffer(PlainText);
 }
 
 // Implement PKCS#7 padding
