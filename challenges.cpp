@@ -4,14 +4,6 @@
 void
 Challenges(void)
 {
-
-    // return PlainTextBuffer;
-
-
-    // FreeByteBuffer(ByteBuffer);
-    // FreeByteBuffer(KeyBuffer);
-    // FreeByteBuffer(PlainTextBuffer);
-    // FreeByteBuffer(CipherTextBuffer);
     // AESAllTests();
     // Challenge1();
     // Challenge2();
@@ -50,7 +42,6 @@ Challenge10()
 
     FreeByteBuffer(ByteBuffer);
     FreeByteBuffer(KeyBuffer);
-    FreeByteBuffer(IV);
     FreeByteBuffer(PlainText);
 }
 

@@ -1827,16 +1827,18 @@ AESCBCOperation(byte_buffer ByteBuffer, byte_buffer KeyBuffer, byte_buffer IV, f
 
         byte_buffer AfterAESBlock = AESOperation(BeforeAESBlock, KeyBuffer, Operation);
 
-        AfterAESBlock = ByteBufferXOR(AfterAESBlock, IV);
+        byte_buffer XORAfterAESBlock = ByteBufferXOR(AfterAESBlock, IV);
+        FreeByteBuffer(AfterAESBlock);
 
-        Result = CatBuffers(Result, AfterAESBlock);
+        Result = CatBuffers(Result, XORAfterAESBlock);
 
         FreeByteBuffer(IV);
         IV = CopyByteBuffer(BeforeAESBlock);
 
         FreeByteBuffer(BeforeAESBlock);
-        FreeByteBuffer(AfterAESBlock);
+        FreeByteBuffer(XORAfterAESBlock);
     }
+    FreeByteBuffer(IV);
 
     return Result;
 }
