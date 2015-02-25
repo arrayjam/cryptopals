@@ -14,7 +14,8 @@ Challenges(void)
     // Challenge7();
     // Challenge8();
     // Challenge9();
-    Challenge10();
+    // Challenge10();
+    Challenge11();
 }
 
 int
@@ -25,6 +26,111 @@ main(int argc, char *argv[])
     Terminate();
 }
 
+int
+CountEqualBlocks(byte_buffer ByteBuffer, size_t BlockSize)
+{
+    int Result = 0;
+    byte_buffers Blocks = ChunkBuffer(ByteBuffer, BlockSize);
+    for(int BlockAIndex = 0;
+        BlockAIndex < Blocks.Size - 1;
+        ++BlockAIndex)
+    {
+        for(int BlockBIndex = BlockAIndex + 1;
+            BlockBIndex < Blocks.Size;
+            ++BlockBIndex)
+        {
+            byte_buffer BlockA = Blocks.Buffers[BlockAIndex];
+            byte_buffer BlockB = Blocks.Buffers[BlockBIndex];
+            if(ByteBuffersEqual(BlockA, BlockB))
+            {
+                Result++;
+            }
+        }
+    }
+
+    FreeByteBuffers(Blocks);
+
+    return Result;
+}
+
+int
+BadRandomNumberBetween(int Min, int Max)
+{
+    assert(Max > Min);
+    return (rand() % (Max - Min + 1)) + Min;
+}
+
+byte_buffer
+GenerateRandomByteBuffer(size_t Size)
+{
+    byte_buffer ByteBuffer = CreateByteBuffer(Size);
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < ByteBuffer.Size;
+        ++ByteBufferIndex)
+    {
+        ByteBuffer.Buffer[ByteBufferIndex] = BadRandomNumberBetween(0, 255);
+    }
+
+    return ByteBuffer;
+}
+
+byte_buffer
+RandomAESKey(void)
+{
+    return GenerateRandomByteBuffer(AES_BLOCK_SIZE);
+}
+
+byte_buffer
+EncryptionOracle(byte_buffer Input)
+{
+    byte_buffer Prepend = GenerateRandomByteBuffer(BadRandomNumberBetween(5, 10));
+    byte_buffer Prepended = CatBuffers(Prepend, Input);
+
+    byte_buffer Append = GenerateRandomByteBuffer(BadRandomNumberBetween(5, 10));
+    byte_buffer ByteBuffer = CatBuffers(Prepended, Append);
+    FreeByteBuffer(Append);
+
+    int ChooseCBC = BadRandomNumberBetween(0, 1);
+    byte_buffer KeyBuffer = RandomAESKey();
+    byte_buffer Result;
+
+    if(ChooseCBC)
+    {
+        byte_buffer IV = GenerateRandomByteBuffer(16);
+        Result = AESEncryptCBC(ByteBuffer, KeyBuffer, IV);
+    }
+    else
+    {
+        Result = AESEncryptECB(ByteBuffer, KeyBuffer);
+    }
+    FreeByteBuffer(ByteBuffer);
+    FreeByteBuffer(KeyBuffer);
+
+    return Result;
+}
+
+// An ECB/CBC detection oracle
+void
+Challenge11()
+{
+    byte_buffer EasyBuffer = CreateByteBuffer(1024);
+    EasyBuffer = FillBuffer(EasyBuffer, 0);
+    byte_buffer CipherText = EncryptionOracle(EasyBuffer);
+    Print(&CipherText, BYTE_BUFFER, AS_NICE_STRING);
+
+    int EqualBlocks = CountEqualBlocks(CipherText, AES_BLOCK_SIZE);
+    printf("%d Equal blocks found\n", EqualBlocks);
+    if(EqualBlocks > 1)
+    {
+        printf("ECB Mode detected.\n");
+    }
+    else
+    {
+        printf("CBC Mode detected.\n");
+    }
+    FreeByteBuffer(EasyBuffer);
+    FreeByteBuffer(CipherText);
+}
 
 // Implement CBC mode
 void
@@ -74,26 +180,7 @@ Challenge8()
     {
         // Print(StringsBuffer.Strings[StringIndex], STRING, AS_NICE_STRING);
         byte_buffer CipherTextBuffer = DecodeHex(StringsBuffer.Strings[StringIndex]);
-        byte_buffers CipherTextBlocks = ChunkBuffer(CipherTextBuffer, AES_BLOCK_SIZE);
-        int EqualBlocksCount = 0;
-        for(int BlockAIndex = 0;
-            BlockAIndex < CipherTextBlocks.Size - 1;
-            ++BlockAIndex)
-        {
-            for(int BlockBIndex = BlockAIndex + 1;
-                BlockBIndex < CipherTextBlocks.Size;
-                ++BlockBIndex)
-            {
-                byte_buffer BlockA = CipherTextBlocks.Buffers[BlockAIndex];
-                byte_buffer BlockB = CipherTextBlocks.Buffers[BlockBIndex];
-                if(ByteBuffersEqual(BlockA, BlockB))
-                {
-                    EqualBlocksCount++;
-                }
-            }
-        }
-
-        FreeByteBuffers(CipherTextBlocks);
+        int EqualBlocksCount = CountEqualBlocks(CipherTextBuffer, AES_BLOCK_SIZE);
 
         if(EqualBlocksCount > MaxEqualBlocksCount)
         {

@@ -1824,19 +1824,29 @@ AESCBCOperation(byte_buffer ByteBuffer, byte_buffer KeyBuffer, byte_buffer IV, f
         ++BlockIndex)
     {
         byte_buffer BeforeAESBlock = CopyIntoBuffer(ByteBuffer, BlockIndex * AES_BLOCK_SIZE, AES_BLOCK_SIZE);
+        byte_buffer ResultBlock;
 
-        byte_buffer AfterAESBlock = AESOperation(BeforeAESBlock, KeyBuffer, Operation);
+        if(Operation & DECRYPT)
+        {
+            byte_buffer AfterAESBlock = AESOperation(BeforeAESBlock, KeyBuffer, Operation);
+            ResultBlock = ByteBufferXOR(AfterAESBlock, IV);
+            FreeByteBuffer(AfterAESBlock);
+            FreeByteBuffer(IV);
+            IV = CopyByteBuffer(BeforeAESBlock);
+        }
+        else
+        {
+            byte_buffer XORBeforeAESBlock = ByteBufferXOR(BeforeAESBlock, IV);
+            ResultBlock = AESOperation(XORBeforeAESBlock, KeyBuffer, Operation);
+            FreeByteBuffer(XORBeforeAESBlock);
+            FreeByteBuffer(IV);
+            IV = CopyByteBuffer(ResultBlock);
+        }
 
-        byte_buffer XORAfterAESBlock = ByteBufferXOR(AfterAESBlock, IV);
-        FreeByteBuffer(AfterAESBlock);
 
-        Result = CatBuffers(Result, XORAfterAESBlock);
-
-        FreeByteBuffer(IV);
-        IV = CopyByteBuffer(BeforeAESBlock);
-
+        Result = CatBuffers(Result, ResultBlock);
         FreeByteBuffer(BeforeAESBlock);
-        FreeByteBuffer(XORAfterAESBlock);
+        FreeByteBuffer(ResultBlock);
     }
     FreeByteBuffer(IV);
 
@@ -1858,6 +1868,7 @@ AESEncryptCBC(byte_buffer PlainText, byte_buffer KeyBuffer, byte_buffer IV)
 void
 Initialize(void)
 {
+    srand(time(NULL));
     FillOutGlobalBase64Lookup();
 }
 

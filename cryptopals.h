@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <time.h>
 #include "portable_endian.h"
 
 typedef int8_t int8;
