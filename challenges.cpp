@@ -113,8 +113,8 @@ EncryptionOracle(byte_buffer Input)
 byte_buffer
 AESOracle(byte_buffer PlainText, byte_buffer SecretText, byte_buffer KeyBuffer)
 {
-    PlainText = CatBuffers(PlainText, SecretText, true);
-    byte_buffer Result = AESEncryptECB(PlainText, KeyBuffer);
+    byte_buffer ByteBuffer  = CatBuffers(PlainText, SecretText);
+    byte_buffer Result = AESEncryptECB(ByteBuffer, KeyBuffer);
 
     return Result;
 }
@@ -139,11 +139,35 @@ DetectBlockSize(byte_buffer SecretBuffer, byte_buffer KeyBuffer)
         {
             Result = CipherText.Size - LastCipherTextSize;
             FreeByteBuffer(CipherText);
+            FreeByteBuffer(PlainText);
             break;
         }
         LastCipherTextSize = CipherText.Size;
         FreeByteBuffer(CipherText);
+        FreeByteBuffer(PlainText);
     }
+
+    return Result;
+}
+
+bool32
+DetectECB(byte_buffer SecretBuffer, byte_buffer KeyBuffer, size_t BlockSize)
+{
+    bool32 Result = false;
+
+    byte_buffer PlainText = CreateByteBuffer(1024);
+    PlainText = FillBuffer(PlainText, 0);
+
+    byte_buffer CipherText = AESOracle(PlainText, SecretBuffer, KeyBuffer);
+
+    int EqualBlocks = CountEqualBlocks(CipherText, BlockSize);
+    if(EqualBlocks > 1)
+    {
+        Result = true;
+    }
+
+    FreeByteBuffer(CipherText);
+    FreeByteBuffer(PlainText);
 
     return Result;
 }
@@ -154,7 +178,16 @@ Challenge12()
     byte_buffer SecretBuffer = FileToBase64Buffer("data/12.txt");
     byte_buffer KeyBuffer = RandomAESKey();
 
-    printf("DetectedBlockSize: %d\n", DetectBlockSize(SecretBuffer, KeyBuffer));
+    int BlockSize = DetectBlockSize(SecretBuffer, KeyBuffer);
+    printf("DetectedBlockSize: %d\n", BlockSize);
+
+    int ECBMode = DetectECB(SecretBuffer, KeyBuffer, BlockSize);
+
+    if(ECBMode)
+    {
+        printf("Detected ECB mode\n");
+    }
+
 }
 
 // An ECB/CBC detection oracle
