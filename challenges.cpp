@@ -15,7 +15,8 @@ Challenges(void)
     // Challenge8();
     // Challenge9();
     // Challenge10();
-    Challenge11();
+    // Challenge11();
+    Challenge12();
 }
 
 int
@@ -84,10 +85,10 @@ byte_buffer
 EncryptionOracle(byte_buffer Input)
 {
     byte_buffer Prepend = GenerateRandomByteBuffer(BadRandomNumberBetween(5, 10));
-    byte_buffer Prepended = CatBuffers(Prepend, Input);
+    byte_buffer Prepended = CatBuffers(Prepend, Input, true);
 
     byte_buffer Append = GenerateRandomByteBuffer(BadRandomNumberBetween(5, 10));
-    byte_buffer ByteBuffer = CatBuffers(Prepended, Append);
+    byte_buffer ByteBuffer = CatBuffers(Prepended, Append, true);
     FreeByteBuffer(Append);
 
     int ChooseCBC = BadRandomNumberBetween(0, 1);
@@ -107,6 +108,53 @@ EncryptionOracle(byte_buffer Input)
     FreeByteBuffer(KeyBuffer);
 
     return Result;
+}
+
+byte_buffer
+AESOracle(byte_buffer PlainText, byte_buffer SecretText, byte_buffer KeyBuffer)
+{
+    PlainText = CatBuffers(PlainText, SecretText, true);
+    byte_buffer Result = AESEncryptECB(PlainText, KeyBuffer);
+
+    return Result;
+}
+
+int
+DetectBlockSize(byte_buffer SecretBuffer, byte_buffer KeyBuffer)
+{
+    int Result = 0;
+    int LastCipherTextSize = 0;
+
+    for(int BlockSize = 0;
+        BlockSize < 256;
+        ++BlockSize)
+    {
+        byte_buffer PlainText = CreateByteBuffer(BlockSize);
+        PlainText = FillBuffer(PlainText, 'X');
+
+        byte_buffer CipherText = AESOracle(PlainText, SecretBuffer, KeyBuffer);
+
+        if(LastCipherTextSize &&
+           ((CipherText.Size - LastCipherTextSize) > 0))
+        {
+            Result = CipherText.Size - LastCipherTextSize;
+            FreeByteBuffer(CipherText);
+            break;
+        }
+        LastCipherTextSize = CipherText.Size;
+        FreeByteBuffer(CipherText);
+    }
+
+    return Result;
+}
+
+void
+Challenge12()
+{
+    byte_buffer SecretBuffer = FileToBase64Buffer("data/12.txt");
+    byte_buffer KeyBuffer = RandomAESKey();
+
+    printf("DetectedBlockSize: %d\n", DetectBlockSize(SecretBuffer, KeyBuffer));
 }
 
 // An ECB/CBC detection oracle
