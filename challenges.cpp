@@ -193,14 +193,55 @@ Challenge12()
     {
         printf("Detected ECB mode\n");
 
-        byte_buffer OneShortBuffer = CreateByteBuffer(BlockSize - 1);
-        FillBuffer(OneShortBuffer, 'A');
-        byte_buffer ByteBuffer = CatBuffers(OneShortBuffer, SecretBuffer);
-        byte_buffer Result = AESEncryptECB(ByteBuffer, KeyBuffer);
-        Print(&Result, BYTE_BUFFER, AS_NICE_STRING);
-        FreeByteBuffer(OneShortBuffer);
-        FreeByteBuffer(ByteBuffer);
-        FreeByteBuffer(Result);
+
+        for(int SecretBufferIndex = 0;
+            SecretBufferIndex < SecretBuffer.Size;
+            ++SecretBufferIndex)
+        {
+            byte_buffer CutDownSecretBuffer = CopyByteBuffer(SecretBuffer);
+            CutDownSecretBuffer.Buffer = SecretBuffer.Buffer + SecretBufferIndex;
+            CutDownSecretBuffer.Size = SecretBuffer.Size - SecretBufferIndex;
+
+            byte_buffer OneShortBuffer = CreateByteBuffer(BlockSize - 1);
+            FillBuffer(OneShortBuffer, 'A');
+            byte_buffer ByteBuffer = CatBuffers(OneShortBuffer, CutDownSecretBuffer);
+            byte_buffer Result = AESEncryptECB(ByteBuffer, KeyBuffer);
+            // Print(&CutDownSecretBuffer, BYTE_BUFFER, AS_NICE_STRING);
+            // Print(&Result, BYTE_BUFFER, AS_NICE_STRING);
+            // printf("Result.Size: %zu\n", Result.Size);
+
+
+            // printf("Mystery Byte: %d\n", Result.Buffer[BlockSize - 1]);
+
+            for(uint8 Char = 0;
+                Char < 128;
+                ++Char)
+            {
+                byte_buffer DictionaryBuffer = CreateByteBuffer(BlockSize);
+                FillBuffer(DictionaryBuffer, 'A');
+
+                DictionaryBuffer.Buffer[BlockSize - 1] = Char;
+
+                byte_buffer DictionaryAndSecretBuffer = CatBuffers(DictionaryBuffer, CutDownSecretBuffer);
+                byte_buffer DictionaryResult = AESEncryptECB(DictionaryAndSecretBuffer, KeyBuffer);
+                byte_buffers A = ChunkBuffer(DictionaryResult, BlockSize);
+                byte_buffers B = ChunkBuffer(Result, BlockSize);
+
+                // printf("Mystery Byte with Char %d: %d\n", Char, DictionaryResult.Buffer[BlockSize - 1]);
+                if(ByteBuffersEqual(A.Buffers[0], B.Buffers[0]))
+                {
+                    printf("%c", Char);
+                }
+                // Print(&DictionaryResult, BYTE_BUFFER, AS_NICE_STRING);
+                FreeByteBuffer(DictionaryBuffer);
+                FreeByteBuffer(DictionaryAndSecretBuffer);
+                FreeByteBuffer(DictionaryResult);
+            }
+            FreeByteBuffer(OneShortBuffer);
+            FreeByteBuffer(ByteBuffer);
+            FreeByteBuffer(Result);
+        }
+            printf("\n");
 
 //         for(int ByteIndex = 0;
 //             ByteIndex < 256;
