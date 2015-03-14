@@ -85,11 +85,10 @@ byte_buffer
 EncryptionOracle(byte_buffer Input)
 {
     byte_buffer Prepend = GenerateRandomByteBuffer(BadRandomNumberBetween(5, 10));
-    byte_buffer Prepended = CatBuffers(Prepend, Input, true);
+    byte_buffer Prepended = CatBuffers(Prepend, Input);
 
     byte_buffer Append = GenerateRandomByteBuffer(BadRandomNumberBetween(5, 10));
-    byte_buffer ByteBuffer = CatBuffers(Prepended, Append, true);
-    FreeByteBuffer(Append);
+    byte_buffer ByteBuffer = CatBuffers(Prepended, Append);
 
     int ChooseCBC = BadRandomNumberBetween(0, 1);
     byte_buffer KeyBuffer = RandomAESKey();
@@ -107,14 +106,19 @@ EncryptionOracle(byte_buffer Input)
     FreeByteBuffer(ByteBuffer);
     FreeByteBuffer(KeyBuffer);
 
+    FreeByteBuffer(Prepend);
+    FreeByteBuffer(Prepended);
+    FreeByteBuffer(Append);
+
     return Result;
 }
 
 byte_buffer
 AESOracle(byte_buffer PlainText, byte_buffer SecretText, byte_buffer KeyBuffer)
 {
-    byte_buffer ByteBuffer  = CatBuffers(PlainText, SecretText);
+    byte_buffer ByteBuffer = CatBuffers(PlainText, SecretText);
     byte_buffer Result = AESEncryptECB(ByteBuffer, KeyBuffer);
+    FreeByteBuffer(ByteBuffer);
 
     return Result;
 }
@@ -176,17 +180,44 @@ void
 Challenge12()
 {
     byte_buffer SecretBuffer = FileToBase64Buffer("data/12.txt");
-    byte_buffer KeyBuffer = RandomAESKey();
+    byte_buffer KeyBuffer = CreateByteBuffer(16);
+    FillBuffer(KeyBuffer, 0);
 
     int BlockSize = DetectBlockSize(SecretBuffer, KeyBuffer);
     printf("DetectedBlockSize: %d\n", BlockSize);
 
     int ECBMode = DetectECB(SecretBuffer, KeyBuffer, BlockSize);
 
+
     if(ECBMode)
     {
         printf("Detected ECB mode\n");
+
+        byte_buffer OneShortBuffer = CreateByteBuffer(BlockSize - 1);
+        FillBuffer(OneShortBuffer, 'A');
+        byte_buffer ByteBuffer = CatBuffers(OneShortBuffer, SecretBuffer);
+        byte_buffer Result = AESEncryptECB(ByteBuffer, KeyBuffer);
+        Print(&Result, BYTE_BUFFER, AS_NICE_STRING);
+        FreeByteBuffer(OneShortBuffer);
+        FreeByteBuffer(ByteBuffer);
+        FreeByteBuffer(Result);
+
+//         for(int ByteIndex = 0;
+//             ByteIndex < 256;
+//             ++ByteIndex)
+//         {
+//             OneShortBuffer.Buffer[BlockSize - 1] = ByteIndex;
+//             byte_buffer Result = AESOracle(OneShortBuffer, SecretBuffer, KeyBuffer);
+//             Print(&Result, BYTE_BUFFER, AS_HEX_STRING);
+
+//             FreeByteBuffer(Result);
+
+
+
+//         }
     }
+    FreeByteBuffer(SecretBuffer);
+    FreeByteBuffer(KeyBuffer);
 
 }
 

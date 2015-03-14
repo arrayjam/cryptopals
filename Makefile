@@ -19,6 +19,6 @@ build:
 	$(CC) $(CFLAGS) -o $(BUILD_PATH) $(SOURCE_FILE)
 
 valgrind: clean build
-	valgrind --leak-check=full --track-origins=yes ./$(BUILD_PATH)
+	valgrind -v --leak-check=full --track-origins=yes ./$(BUILD_PATH)
 
 .PHONY: all clean run build valgrind

@@ -136,7 +136,7 @@ ResizeBuffer(byte_buffer ByteBuffer, size_t NewSize)
 }
 
 byte_buffer
-CatBuffers(byte_buffer BufferA, byte_buffer BufferB, bool32 FreeFirstBuffer = false)
+CatBuffers(byte_buffer BufferA, byte_buffer BufferB)
 {
     size_t TotalSize = BufferA.Size + BufferB.Size;
     byte_buffer Result = CreateByteBuffer(TotalSize);
@@ -148,18 +148,36 @@ CatBuffers(byte_buffer BufferA, byte_buffer BufferB, bool32 FreeFirstBuffer = fa
         Result.Buffer[ByteBufferIndex] = BufferA.Buffer[ByteBufferIndex];
     }
 
-    for(int ByteBufferIndex = BufferA.Size;
-        ByteBufferIndex < TotalSize;
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < BufferB.Size;
         ++ByteBufferIndex)
     {
-        Result.Buffer[ByteBufferIndex] = BufferB.Buffer[ByteBufferIndex];
+        int ResultIndex = ByteBufferIndex + BufferA.Size;
+        Result.Buffer[ResultIndex] = BufferB.Buffer[ByteBufferIndex];
     }
 
-    if(FreeFirstBuffer)
+    return Result;
+}
+
+byte_buffer
+CatToBuffer(byte_buffer First, byte_buffer Second)
+{
+    byte_buffer Result = CopyByteBuffer(First);
+
+    size_t TotalSize = First.Size + Second.Size;
+
+    Result = ResizeBuffer(Result, TotalSize);
+
+    for(int ByteBufferIndex = 0;
+        ByteBufferIndex < Second.Size;
+        ++ByteBufferIndex)
     {
-        FreeByteBuffer(BufferA);
+        int ResultIndex = ByteBufferIndex + First.Size;
+        Result.Buffer[ResultIndex] = Second.Buffer[ByteBufferIndex];
     }
 
+    FreeByteBuffer(First);
+    FreeByteBuffer(Second);
     return Result;
 }
 
@@ -1675,9 +1693,7 @@ AESECBOperation(byte_buffer CipherTextBuffer, byte_buffer KeyBuffer, flag Operat
         byte_buffer CipherBlock = CopyIntoBuffer(CipherTextBuffer, BlockIndex * AES_BLOCK_SIZE, AES_BLOCK_SIZE);
 
         byte_buffer PlainTextBlock = AESOperation(CipherBlock, KeyBuffer, Operation);
-        PlainTextBuffer = CatBuffers(PlainTextBuffer, PlainTextBlock, true);
-
-        FreeByteBuffer(PlainTextBlock);
+        PlainTextBuffer = CatToBuffer(PlainTextBuffer, PlainTextBlock);
 
         FreeByteBuffer(CipherBlock);
     }
@@ -1855,10 +1871,8 @@ AESCBCOperation(byte_buffer ByteBuffer, byte_buffer KeyBuffer, byte_buffer IV, f
             IV = CopyByteBuffer(ResultBlock);
         }
 
-
-        Result = CatBuffers(Result, ResultBlock, true);
+        Result = CatToBuffer(Result, ResultBlock);
         FreeByteBuffer(BeforeAESBlock);
-        FreeByteBuffer(ResultBlock);
     }
     FreeByteBuffer(IV);
 
