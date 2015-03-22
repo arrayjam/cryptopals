@@ -180,38 +180,38 @@ void
 Challenge12()
 {
     byte_buffer SecretBuffer = FileToBase64Buffer("data/12.txt");
-    byte_buffer KeyBuffer = CreateByteBuffer(16);
-    FillBuffer(KeyBuffer, 0);
+    byte_buffer KeyBuffer = RandomAESKey();
 
     int BlockSize = DetectBlockSize(SecretBuffer, KeyBuffer);
     printf("DetectedBlockSize: %d\n", BlockSize);
 
     int ECBMode = DetectECB(SecretBuffer, KeyBuffer, BlockSize);
 
+    setbuf(stdout, NULL);
 
     if(ECBMode)
     {
         printf("Detected ECB mode\n");
 
-
+        byte_buffer Decoded = CreateByteBuffer(SecretBuffer.Size);
         for(int SecretBufferIndex = 0;
             SecretBufferIndex < SecretBuffer.Size;
             ++SecretBufferIndex)
         {
-            byte_buffer CutDownSecretBuffer = CopyByteBuffer(SecretBuffer);
-            CutDownSecretBuffer.Buffer = SecretBuffer.Buffer + SecretBufferIndex;
-            CutDownSecretBuffer.Size = SecretBuffer.Size - SecretBufferIndex;
+            int CutDownSize = SecretBuffer.Size - SecretBufferIndex;
+            byte_buffer CutDownSecretBuffer = CreateByteBuffer(CutDownSize);
+            for(int CutDownIndex = 0;
+                CutDownIndex < CutDownSize;
+                ++CutDownIndex)
+            {
+                CutDownSecretBuffer.Buffer[CutDownIndex] =
+                    SecretBuffer.Buffer[SecretBufferIndex + CutDownIndex];
+            }
 
             byte_buffer OneShortBuffer = CreateByteBuffer(BlockSize - 1);
             FillBuffer(OneShortBuffer, 'A');
             byte_buffer ByteBuffer = CatBuffers(OneShortBuffer, CutDownSecretBuffer);
             byte_buffer Result = AESEncryptECB(ByteBuffer, KeyBuffer);
-            // Print(&CutDownSecretBuffer, BYTE_BUFFER, AS_NICE_STRING);
-            // Print(&Result, BYTE_BUFFER, AS_NICE_STRING);
-            // printf("Result.Size: %zu\n", Result.Size);
-
-
-            // printf("Mystery Byte: %d\n", Result.Buffer[BlockSize - 1]);
 
             for(uint8 Char = 0;
                 Char < 128;
@@ -227,36 +227,27 @@ Challenge12()
                 byte_buffers A = ChunkBuffer(DictionaryResult, BlockSize);
                 byte_buffers B = ChunkBuffer(Result, BlockSize);
 
-                // printf("Mystery Byte with Char %d: %d\n", Char, DictionaryResult.Buffer[BlockSize - 1]);
                 if(ByteBuffersEqual(A.Buffers[0], B.Buffers[0]))
                 {
+                    Decoded.Buffer[SecretBufferIndex] = Char;
                     printf("%c", Char);
                 }
-                // Print(&DictionaryResult, BYTE_BUFFER, AS_NICE_STRING);
+
                 FreeByteBuffer(DictionaryBuffer);
                 FreeByteBuffer(DictionaryAndSecretBuffer);
                 FreeByteBuffer(DictionaryResult);
+                FreeByteBuffers(A);
+                FreeByteBuffers(B);
             }
             FreeByteBuffer(OneShortBuffer);
             FreeByteBuffer(ByteBuffer);
             FreeByteBuffer(Result);
+            FreeByteBuffer(CutDownSecretBuffer);
         }
-            printf("\n");
 
-//         for(int ByteIndex = 0;
-//             ByteIndex < 256;
-//             ++ByteIndex)
-//         {
-//             OneShortBuffer.Buffer[BlockSize - 1] = ByteIndex;
-//             byte_buffer Result = AESOracle(OneShortBuffer, SecretBuffer, KeyBuffer);
-//             Print(&Result, BYTE_BUFFER, AS_HEX_STRING);
-
-//             FreeByteBuffer(Result);
-
-
-
-//         }
+        FreeByteBuffer(Decoded);
     }
+
     FreeByteBuffer(SecretBuffer);
     FreeByteBuffer(KeyBuffer);
 
