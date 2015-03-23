@@ -27,60 +27,6 @@ main(int argc, char *argv[])
     Terminate();
 }
 
-int
-CountEqualBlocks(byte_buffer ByteBuffer, size_t BlockSize)
-{
-    int Result = 0;
-    byte_buffers Blocks = ChunkBuffer(ByteBuffer, BlockSize);
-    for(int BlockAIndex = 0;
-        BlockAIndex < Blocks.Size - 1;
-        ++BlockAIndex)
-    {
-        for(int BlockBIndex = BlockAIndex + 1;
-            BlockBIndex < Blocks.Size;
-            ++BlockBIndex)
-        {
-            byte_buffer BlockA = Blocks.Buffers[BlockAIndex];
-            byte_buffer BlockB = Blocks.Buffers[BlockBIndex];
-            if(ByteBuffersEqual(BlockA, BlockB))
-            {
-                Result++;
-            }
-        }
-    }
-
-    FreeByteBuffers(Blocks);
-
-    return Result;
-}
-
-int
-BadRandomNumberBetween(int Min, int Max)
-{
-    assert(Max > Min);
-    return (rand() % (Max - Min + 1)) + Min;
-}
-
-byte_buffer
-GenerateRandomByteBuffer(size_t Size)
-{
-    byte_buffer ByteBuffer = CreateByteBuffer(Size);
-    for(int ByteBufferIndex = 0;
-        ByteBufferIndex < ByteBuffer.Size;
-        ++ByteBufferIndex)
-    {
-        ByteBuffer.Buffer[ByteBufferIndex] = BadRandomNumberBetween(0, 255);
-    }
-
-    return ByteBuffer;
-}
-
-byte_buffer
-RandomAESKey(void)
-{
-    return GenerateRandomByteBuffer(AES_BLOCK_SIZE);
-}
-
 byte_buffer
 EncryptionOracle(byte_buffer Input)
 {
