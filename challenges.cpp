@@ -1,6 +1,94 @@
 #include "cryptopals.cpp"
 #include "challenges.h"
 
+
+struct key_value
+{
+    uint8 *Key;
+    uint8 *Value;
+};
+
+struct key_values
+{
+    key_value *KV;
+    key_values *Next;
+};
+
+void
+Challenge13()
+{
+    uint8 *QueryString = (uint8 *)"foo=bar&baz=qux&zap=zazzle";
+
+    uint8 *CharPointer = QueryString;
+
+    bool32 Key = true;
+    bool32 Value = false;
+    int StringIndex = 0;
+    key_value *CurrentKV = (key_value *)malloc(sizeof(key_value));
+    CurrentKV->Key = (uint8 *)malloc(sizeof(uint8) * 128);
+    CurrentKV->Value = (uint8 *)malloc(sizeof(uint8) * 128);
+    key_values *KVs = (key_values *)malloc(sizeof(key_values));
+    KVs->KV = CurrentKV;
+
+    key_values *FirstKVs = KVs;
+
+    while(*CharPointer)
+    {
+        if(*CharPointer == '=')
+        {
+            Key = false;
+            Value = true;
+            CharPointer++;
+            StringIndex = 0;
+        }
+        else if (*CharPointer == '&')
+        {
+            Key = true;
+            Value = false;
+            CharPointer++;
+            StringIndex = 0;
+
+            key_value *NewKV = (key_value *)malloc(sizeof(key_value));
+            key_values *NewKVs = (key_values *)malloc(sizeof(key_values));
+
+            NewKV->Key = (uint8 *)malloc(sizeof(uint8) * 128);
+            NewKV->Value = (uint8 *)malloc(sizeof(uint8) * 128);
+            NewKVs->KV = NewKV;
+
+            KVs->Next = NewKVs;
+            KVs = NewKVs;
+            CurrentKV = NewKV;
+        }
+
+        if(Key)
+        {
+            CurrentKV->Key[StringIndex] = *CharPointer;
+            printf("Key:\t%c\n", *CharPointer);
+        }
+
+        if(Value)
+        {
+            CurrentKV->Value[StringIndex] = *CharPointer;
+            printf("Value:\t%c\n", *CharPointer);
+        }
+
+        StringIndex++;
+        CharPointer++;
+        printf("\n");
+    }
+    printf("\n");
+
+    key_values *KVPtr = FirstKVs;
+
+    while(KVPtr)
+    {
+        printf("Key: %s\n", KVPtr->KV->Key);
+        printf("Value: %s\n", KVPtr->KV->Value);
+
+        KVPtr = KVPtr->Next;
+    }
+}
+
 void
 Challenges(void)
 {
@@ -16,7 +104,8 @@ Challenges(void)
     // Challenge9();
     // Challenge10();
     // Challenge11();
-    Challenge12();
+    // Challenge12();
+    Challenge13();
 }
 
 int
