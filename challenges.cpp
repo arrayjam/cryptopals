@@ -15,6 +15,46 @@ struct key_values
 };
 
 void
+PrintKeyValues(key_values *KVs)
+{
+    while(KVs)
+    {
+        printf("Key: %s\n", KVs->KV->Key);
+        printf("Value: %s\n", KVs->KV->Value);
+
+        KVs = KVs->Next;
+    }
+}
+
+key_values
+ProfileFor(uint8 *Email)
+{
+    key_values *KVs = (key_values *)malloc(sizeof(key_values));
+    key_value *KV = (key_value *)malloc(sizeof(key_value));
+    KV->Key = (uint8 *)malloc(sizeof(uint8) * 128);
+    KV->Value = (uint8 *)malloc(sizeof(uint8) * 128);
+
+    int EmailStringIndex = 0;
+    int ValueIndex = 0;
+    while(*Email)
+    {
+        uint8 Char = *Email;
+        if(Char != '&' && Char != '=')
+        {
+            KV->Value[ValueIndex] = *Email;
+            Email++;
+            ValueIndex++;
+        }
+        else
+        {
+            Email++;
+        }
+    }
+
+    printf("%s", KV->Value);
+}
+
+void
 Challenge13()
 {
     uint8 *QueryString = (uint8 *)"foo=bar&baz=qux&zap=zazzle";
@@ -78,15 +118,8 @@ Challenge13()
     }
     printf("\n");
 
-    key_values *KVPtr = FirstKVs;
-
-    while(KVPtr)
-    {
-        printf("Key: %s\n", KVPtr->KV->Key);
-        printf("Value: %s\n", KVPtr->KV->Value);
-
-        KVPtr = KVPtr->Next;
-    }
+    PrintKeyValues(FirstKVs);
+    ProfileFor((uint8 *)"foo@bar.com&role=admin");
 }
 
 void
